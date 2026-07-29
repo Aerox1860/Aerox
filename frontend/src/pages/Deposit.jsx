@@ -87,7 +87,12 @@ export default function Deposit() {
       </div>
 
       <div className="card-surface p-5">
-        <div className="text-[11px] uppercase tracking-widest text-slate-400 mb-3">Choose an admin UPI</div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-[11px] uppercase tracking-widest text-slate-400">Choose an admin UPI</div>
+          <button onClick={loadAll} disabled={refreshing} className="btn-ghost px-3 py-1.5 rounded-lg text-xs flex items-center gap-1" data-testid="refresh-upi-btn">
+            <RefreshCw className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+          </button>
+        </div>
         {upis.length === 0 && <div className="text-sm text-slate-500">No UPI configured yet. Contact support.</div>}
         <div className="grid sm:grid-cols-2 gap-3">
           {upis.map((u) => (
