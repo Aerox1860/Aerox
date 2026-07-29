@@ -158,7 +158,7 @@ function ManualCreditModal({ onClose, onDone }) {
         </div>
         <div>
           <label className="text-[11px] uppercase tracking-widest text-slate-400">Amount (₹)</label>
-          <input type="number" step="1" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} required
+          <input type="number" step="0.01" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} required
             className="w-full mt-1 bg-[#06090F] border border-white/10 rounded-lg px-3 py-2.5 outline-none focus:border-cyan-500 font-mono"
             data-testid="manual-amount-input" />
         </div>
