@@ -70,7 +70,7 @@ export default function Login({ adminMode = false }) {
               type="email" required autoComplete="email"
               value={email} onChange={(e) => setEmail(e.target.value)}
               className="w-full mt-1 bg-[#06090F] border border-white/10 rounded-lg px-3 py-2.5 outline-none focus:border-cyan-500 transition-colors"
-              placeholder={isAdminMode ? "gowin365x@gmail.com" : "you@example.com"}
+              placeholder="you@example.com"
               data-testid={isAdminMode ? "admin-login-email-input" : "login-email-input"}
             />
           </div>
