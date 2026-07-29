@@ -36,13 +36,15 @@ export function AuthProvider({ children }) {
     setUser(u);
   };
 
+  const updateUser = (u) => setUser(u);
+
   const logout = () => {
     localStorage.removeItem("aerox_token");
     setUser(null);
   };
 
   return (
-    <AuthCtx.Provider value={{ user, loading, login, logout, refresh, setUser }}>
+    <AuthCtx.Provider value={{ user, loading, login, logout, refresh, setUser, updateUser }}>
       {children}
     </AuthCtx.Provider>
   );

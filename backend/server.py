@@ -98,7 +98,14 @@ def public_user(u: dict) -> dict:
         "created_at": u["created_at"] if isinstance(u.get("created_at"), str) else iso(u["created_at"]),
         "is_blocked": u.get("is_blocked", False),
         "last_daily_bonus": u.get("last_daily_bonus"),
+        "must_change_password": bool(u.get("must_change_password", False)),
     }
+
+
+def gen_temp_password() -> str:
+    # Readable, mixed-case + digits, no ambiguous chars (0/O/1/l/I)
+    alphabet = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+    return "".join(secrets.choice(alphabet) for _ in range(10))
 
 
 # --------------------- Auth Dependency ---------------------
@@ -134,6 +141,13 @@ class RegisterIn(BaseModel):
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
+
+class ChangePasswordIn(BaseModel):
+    new_password: str = Field(min_length=6, max_length=100)
+    confirm_password: str = Field(min_length=6, max_length=100)
+
+class TempPasswordIn(BaseModel):
+    user_id: str
 
 class DepositIn(BaseModel):
     amount: float = Field(gt=0)
@@ -297,12 +311,66 @@ async def register(body: RegisterIn):
 async def login(body: LoginIn):
     email = body.email.lower()
     user = await db.users.find_one({"email": email})
-    if not user or not verify_password(body.password, user["password_hash"]):
+    if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if user.get("is_blocked"):
         raise HTTPException(status_code=403, detail="Account blocked")
+
+    used_temp = False
+    if verify_password(body.password, user["password_hash"]):
+        pass  # normal login
+    elif user.get("temp_password_hash"):
+        # check temp password + expiry
+        exp = user.get("temp_password_expires_at")
+        expired = False
+        if exp:
+            try:
+                exp_dt = datetime.fromisoformat(exp) if isinstance(exp, str) else exp
+                if exp_dt.tzinfo is None:
+                    exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                if exp_dt < now_utc():
+                    expired = True
+            except Exception:
+                pass
+        if expired:
+            raise HTTPException(status_code=401, detail="Temporary password has expired. Ask admin for a new one.")
+        if not verify_password(body.password, user["temp_password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        used_temp = True
+    else:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    updates = {}
+    if used_temp:
+        # Clear temp password; force change on next screen
+        updates["temp_password_hash"] = None
+        updates["temp_password_expires_at"] = None
+        updates["must_change_password"] = True
+    if updates:
+        await db.users.update_one({"id": user["id"]}, {"$set": updates})
+        user.update(updates)
+
     token = make_token(user["id"], user.get("role", "user"))
-    return {"token": token, "user": public_user(user)}
+    return {"token": token, "user": public_user(user), "used_temp_password": used_temp}
+
+
+@api.post("/auth/change-password")
+async def change_password(body: ChangePasswordIn, user: dict = Depends(current_user)):
+    if body.new_password != body.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    if len(body.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    # Prevent reusing the same password
+    if verify_password(body.new_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="New password must be different from your previous one")
+    await db.users.update_one({"id": user["id"]}, {"$set": {
+        "password_hash": hash_password(body.new_password),
+        "must_change_password": False,
+        "temp_password_hash": None,
+        "temp_password_expires_at": None,
+    }})
+    updated = await db.users.find_one({"id": user["id"]})
+    return {"ok": True, "user": public_user(updated)}
 
 
 @api.get("/auth/me")
@@ -685,7 +753,9 @@ async def admin_users(search: Optional[str] = None, _: dict = Depends(admin_only
     q = {}
     if search:
         q = {"$or": [{"email": {"$regex": search, "$options": "i"}}, {"name": {"$regex": search, "$options": "i"}}]}
-    docs = await db.users.find(q, {"_id": 0, "password_hash": 0}).sort("created_at", -1).limit(200).to_list(200)
+    docs = await db.users.find(q, {"_id": 0, "password_hash": 0, "temp_password_hash": 0}).sort("created_at", -1).limit(200).to_list(200)
+    for d in docs:
+        d["has_temp_password"] = bool(d.get("temp_password_expires_at"))
     return docs
 
 
@@ -705,6 +775,30 @@ async def admin_adjust(body: AdjustBalanceIn, _: dict = Depends(admin_only)):
     else:
         await debit(body.user_id, -body.delta, "adjust", body.note or "Admin debit")
     return {"ok": True}
+
+
+@api.post("/admin/users/temp-password")
+async def admin_temp_password(body: TempPasswordIn, admin: dict = Depends(admin_only)):
+    u = await db.users.find_one({"id": body.user_id})
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    if u.get("role") == "admin":
+        raise HTTPException(status_code=400, detail="Cannot generate temp password for admin accounts")
+    temp_plain = gen_temp_password()
+    expires = now_utc() + timedelta(hours=48)
+    await db.users.update_one({"id": body.user_id}, {"$set": {
+        "temp_password_hash": hash_password(temp_plain),
+        "temp_password_expires_at": iso(expires),
+        "must_change_password": False,  # will be set to True upon temp-login
+    }})
+    logger.info(f"Admin {admin['email']} generated temp password for user {u['email']}")
+    return {
+        "ok": True,
+        "user_id": body.user_id,
+        "user_email": u["email"],
+        "temp_password": temp_plain,
+        "expires_at": iso(expires),
+    }
 
 
 @api.post("/admin/game/config")

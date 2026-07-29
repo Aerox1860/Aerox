@@ -23,6 +23,7 @@ import AdminGameControl from "@/pages/admin/GameControl";
 import AdminReports from "@/pages/admin/Reports";
 
 import PlayerLayout from "@/components/PlayerLayout";
+import ChangePassword from "@/pages/ChangePassword";
 
 // Host-based routing:
 // - Hosts containing "admin" (e.g. gowin365xadmin.com) → admin-only app
@@ -48,6 +49,8 @@ function Protected({ children, admin = false }) {
     );
   }
   if (!user) return <Navigate to={admin ? "/admin/login" : "/login"} replace />;
+  // Force temp-password holders to change password before doing anything else
+  if (user.must_change_password) return <Navigate to="/change-password" replace />;
   if (admin && user.role !== "admin") return <Navigate to="/admin/login" replace />;
   return children;
 }
@@ -62,6 +65,7 @@ function AppRoutes() {
         <Route path="/login" element={<Navigate to="/admin/login" replace />} />
         <Route path="/register" element={<Navigate to="/admin/login" replace />} />
         <Route path="/admin/login" element={loading ? null : (user && user.role === 'admin' ? <Navigate to="/admin" /> : <Login adminMode />)} />
+        <Route path="/change-password" element={user ? <ChangePassword /> : <Navigate to="/admin/login" replace />} />
         <Route path="/admin" element={<Protected admin><AdminLayout /></Protected>}>
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<AdminUsers />} />
@@ -82,6 +86,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={loading ? null : (user ? <Navigate to="/" /> : <Login />)} />
         <Route path="/register" element={loading ? null : (user ? <Navigate to="/" /> : <Register />)} />
+        <Route path="/change-password" element={user ? <ChangePassword /> : <Navigate to="/login" replace />} />
         <Route path="/admin/*" element={<Navigate to="/login" replace />} />
         <Route path="/" element={<Protected><PlayerLayout /></Protected>}>
           <Route index element={<Lobby />} />
@@ -104,6 +109,7 @@ function AppRoutes() {
       <Route path="/login" element={loading ? null : (user ? <Navigate to={user.role === 'admin' ? '/admin' : '/'} /> : <Login />)} />
       <Route path="/admin/login" element={loading ? null : (user && user.role === 'admin' ? <Navigate to="/admin" /> : <Login adminMode />)} />
       <Route path="/register" element={loading ? null : (user ? <Navigate to="/" /> : <Register />)} />
+      <Route path="/change-password" element={user ? <ChangePassword /> : <Navigate to="/login" replace />} />
 
       <Route path="/" element={<Protected><PlayerLayout /></Protected>}>
         <Route index element={<Lobby />} />

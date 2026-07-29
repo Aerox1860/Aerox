@@ -1,0 +1,63 @@
+{
+  "summary": "Iteration 4: tested admin-initiated temporary password reset feature end-to-end. 10/10 backend pytest cases pass covering temp-password generation, login (dual password), change-password (mismatch/same/short/success), regeneration invalidation, expiry simulation via mongo, and admin/users list flag. Frontend E2E flow verified via Playwright: admin generates temp → user logs in with temp → forced to /change-password → set new password → redirected home. Old password invalidated, used-once temp rejected, and /wallet properly redirects to /change-password while must_change_password=true. Found 1 UI spec violation: yellow 'temp pw' chip is bound to must_change_password rather than has_temp_password.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AdminUsers table (Users.jsx line 70)",
+        "issue": "Yellow 'temp pw' chip renders on u.must_change_password but spec requires it to render on u.has_temp_password. Right after admin generates a temp password (before the user uses it) has_temp_password=true and must_change_password=false, so the chip is NOT shown even though the user has an outstanding temp password. The chip only appears after the user logs in with the temp password (must_change_password becomes true), which contradicts the spec item: 'users with an outstanding temp password (has_temp_password=true) show a yellow temp pw chip'.",
+        "selector": "row of user in [data-testid=users-table]",
+        "priority": "MEDIUM",
+        "fix_hint": "Change `{u.must_change_password && <span ...>temp pw</span>}` to `{(u.has_temp_password || u.must_change_password) && <span ...>temp pw</span>}` (or just `u.has_temp_password`)."
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_flows": [
+    "Admin login (/admin/login) with seeded credentials",
+    "Admin /admin/users search + click temp-pw-btn-<uid> (label 'Reset pw' initially)",
+    "temp-pw-confirm-modal appears with confirmation copy",
+    "temp-pw-generate-btn triggers POST /api/admin/users/temp-password and opens temp-pw-reveal-modal",
+    "temp-pw-value shows 10-char plaintext; temp-pw-copy-btn visible",
+    "Button label switches from 'Reset pw' to 'New temp' after generation (has_temp_password reflected)",
+    "User logs in with temp password → auto-redirect to /change-password (must_change_password=true propagated)",
+    "Visiting /wallet while must_change_password=true → redirected to /change-password (Protected guard)",
+    "Submit button disabled when confirm != new password",
+    "Successful change-password → redirect to / (player home)",
+    "After change, login with NEW pw works (200), OLD pw fails (401), used temp pw fails (401)",
+    "Regenerating temp invalidates previous temp (backend test)",
+    "Expired temp (mongo backdated) returns 401 'Temporary password has expired'",
+    "GET /api/admin/users returns has_temp_password flag and excludes temp_password_hash/password_hash"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_temp_password.py",
+    "/app/test_reports/pytest/temp_password_results.xml"
+  ],
+  "action_items": [
+    "Fix yellow 'temp pw' chip visibility in /app/frontend/src/pages/admin/Users.jsx line 70: use u.has_temp_password (or `u.has_temp_password || u.must_change_password`) so admin sees the chip immediately after generating a temp password, per spec."
+  ],
+  "critical_code_review_comments": [
+    "server.py:786 correctly rejects temp password for admin accounts, but note that role check happens before the 404 lookup is completed — flow is fine because the not-found branch precedes it.",
+    "change-password endpoint returns 400 for password mismatch/same, but 422 for <6 characters (pydantic Field(min_length=6)). Spec explicitly expects 422 for short; matches. Behavior consistent.",
+    "server.py 320-341: dual password check allows OLD password AND temp to both work concurrently — matches requirement 'existing password stays valid until user uses temp password'. Once temp is used it is cleared and must_change_password=true is persisted. Good.",
+    "Users.jsx uses `u.must_change_password` to display the 'temp pw' chip. This does not correspond to has_temp_password. Fix required.",
+    "Frontend: Login.jsx correctly routes on used_temp_password OR must_change_password. Good.",
+    "ChangePassword.jsx disables submit until pw===confirm, showing inline 'Passwords do not match' message. Client-side length check is 6 (matches backend). Good.",
+    "Consider server.py trimming/normalising temp password before storing (currently 10-char random alnum – fine).",
+    "Admin has_temp_password is derived from temp_password_expires_at presence but does not check expiry. A stale expired-but-not-cleared temp would still show has_temp_password=true. Minor — cleanup on login already clears expired ones only when used."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_temp_password.py (new)"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "~93% (13/14 explicit UI items; chip visibility fails spec)"},
+  "test_credentials": "Admin: gowin365x@gmail.com / Admin@AeroX2026 (seeded). Ephemeral test users created via /api/auth/register with pattern tempflow<hex>@aeroxtest.com / OldPass1.",
+  "seed_data_creation": "Each test creates a fresh registered user; no manual seeding required. Test data persisted in mongo (not cleaned up — noted for follow-up cleanup if needed).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression file /app/backend/tests/test_temp_password.py covers full temp-password lifecycle including expiry (patches mongo directly). Reuse as-is. If retesting after chip fix, verify the 'temp pw' chip appears in admin users row directly after clicking Generate (before user logs in with temp). Playwright selector: locator('[data-testid=\"temp-pw-btn-<uid>\"]').evaluate(\"el => el.closest('div.grid').innerText\") — look for 'temp pw' substring.",
+  "rca of the issue": "Chip visibility bug — root cause: Users.jsx line 70 renders the yellow 'temp pw' chip only when u.must_change_password is truthy. However, must_change_password is only set to true AFTER the user logs in with the temp password (server.py line 348). Between the admin generating the temp and the user first using it, has_temp_password=true but must_change_password=false, so the chip is invisible. Fix by using u.has_temp_password. Reproduction: (1) admin generates temp for user X, (2) refresh /admin/users, (3) row for X shows no yellow chip. Expected: chip present."
+}

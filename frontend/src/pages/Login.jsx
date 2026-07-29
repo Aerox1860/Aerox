@@ -25,6 +25,11 @@ export default function Login({ adminMode = false }) {
         return;
       }
       login(data.token, data.user);
+      if (data.used_temp_password || data.user.must_change_password) {
+        toast.info("Temporary password accepted — please set a new one.");
+        nav("/change-password", { replace: true });
+        return;
+      }
       toast.success(`Welcome ${data.user.role === "admin" ? "back, Admin" : data.user.name}`);
       nav(data.user.role === "admin" ? "/admin" : "/");
     } catch (e) {
