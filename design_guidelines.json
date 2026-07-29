@@ -1,0 +1,132 @@
+{
+  "theme": "dark",
+  "archetype": "Electric & Neon",
+  "typography": {
+    "fonts": {
+      "headings": "Unbounded",
+      "body": "Outfit",
+      "monospace": "JetBrains Mono"
+    },
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold",
+      "h3": "text-xl sm:text-2xl tracking-tight font-semibold",
+      "body": "text-base leading-relaxed text-slate-300",
+      "small": "text-sm text-slate-400",
+      "labels": "text-xs tracking-[0.2em] uppercase text-slate-400",
+      "multiplier": "text-6xl sm:text-8xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-green-400 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)]"
+    },
+    "instructions_to_main_agent": "Use Unbounded for main headings and brand names. Use Outfit for general UI body. CRITICAL: Use JetBrains Mono for ALL fast-changing numbers (Multiplier, balances, live bets) to prevent width-shifting jitter."
+  },
+  "colors": {
+    "background": {
+      "base": "#06090F",
+      "surface": "#0F1423",
+      "raised": "#1A2235",
+      "overlay": "rgba(6, 9, 15, 0.8)"
+    },
+    "primary": {
+      "default": "#06b6d4",
+      "hover": "#22d3ee",
+      "glow": "rgba(6, 182, 212, 0.4)"
+    },
+    "accent": {
+      "green": "#22c55e",
+      "green_glow": "rgba(34, 197, 94, 0.4)",
+      "red": "#ef4444",
+      "red_glow": "rgba(239, 68, 68, 0.4)"
+    },
+    "text": {
+      "primary": "#F8FAFC",
+      "secondary": "#94A3B8",
+      "muted": "#475569"
+    },
+    "borders": {
+      "subtle": "rgba(255, 255, 255, 0.08)",
+      "strong": "rgba(255, 255, 255, 0.15)",
+      "focus": "#06b6d4"
+    }
+  },
+  "layouts": {
+    "player_app": {
+      "mobile_strategy": "Mobile-first full-height layout. Main game area in center, sticky bottom navigation.",
+      "bottom_nav": "Fixed bottom, z-50, glassmorphism (backdrop-blur-xl bg-[#06090F]/80), border-t border-white/10. Active icon glows neon cyan.",
+      "game_area": "Flex container taking remaining height. The graph should be prominent at the top/center, bet controls pinned above the bottom nav."
+    },
+    "admin_portal": {
+      "desktop_strategy": "Grid Borders / Technical Look. Strict hierarchy, dense data.",
+      "sidebar": "Fixed left, w-64, bg-[#06090F] border-r border-white/10.",
+      "main_content": "p-6 lg:p-10 space-y-6 max-w-7xl mx-auto."
+    },
+    "spacing": "Use p-4 to p-6 for mobile cards. Generous gaps (gap-6 to gap-8) between main layout sections. Dense gaps (gap-2) inside bet lists."
+  },
+  "visual_enhancers": {
+    "surfaces": {
+      "cards": "bg-[#0F1423] rounded-xl border border-white/10 shadow-lg",
+      "glass": "backdrop-blur-xl bg-[#06090F]/70 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)]",
+      "game_canvas": "relative overflow-hidden bg-gradient-to-b from-[#06090F] to-[#0F1423] border border-white/10 rounded-2xl"
+    },
+    "buttons": {
+      "bet": "w-full py-4 rounded-xl font-bold text-lg transition-all duration-200 bg-green-500 text-black hover:bg-green-400 shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:shadow-[0_0_30px_rgba(34,197,94,0.6)] transform hover:-translate-y-1 active:translate-y-0",
+      "cashout": "w-full py-4 rounded-xl font-bold text-lg transition-all duration-200 bg-cyan-500 text-black hover:bg-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.3)]",
+      "secondary": "bg-[#1A2235] text-white hover:bg-[#232D45] border border-white/10"
+    },
+    "crash_state": "When crashed, multiplier turns text-red-500, graph stroke turns red, background flashes red/10.",
+    "animations": {
+      "multiplier_tick": "Use Framer Motion to animate value changes smoothly if possible, or just raw React state with JetBrains Mono to prevent jitter.",
+      "plane_trail": "An SVG path with stroke-dasharray animation drawing left-to-right/bottom-to-top, colored cyan."
+    }
+  },
+  "components": {
+    "ui_library": "shadcn/ui customized for dark/neon.",
+    "chart": "For the crash curve, avoid complex chart libraries. Use a simple responsive SVG `<svg>` drawing a quadratic bezier curve `<path>` driven by the current multiplier state.",
+    "live_players_list": "Dense table/list with avatars, usernames, bet amounts, and live cashout statuses (green badge if cashed out).",
+    "chat": "Fading top overlay or side panel in desktop. On mobile, a collapsible bottom sheet or simple text overlay over the game."
+  },
+  "media": {
+    "image_urls": {
+      "hero_background": {
+        "url": "https://images.unsplash.com/photo-1768677024829-b6691d27f42b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMG5lb24lMjBhaXJwbGFuZSUyMGRhcmt8ZW58MHx8fHwxNzg0ODcwMjAxfDA&ixlib=rb-4.1.0&q=85",
+        "category": "auth_bg",
+        "description": "Airplane lights in dark night sky, suitable for auth screen background overlay."
+      },
+      "abstract_texture": {
+        "url": "https://images.unsplash.com/photo-1687639166604-b91cf403fe61?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHw0fHxuZW9uJTIwY3lhbiUyMGdyZWVuJTIwZGFyayUyMGFic3RyYWN0JTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODUzMTA1MzJ8MA&ixlib=rb-4.1.0&q=85",
+        "category": "texture_overlay",
+        "description": "Subtle green/dark abstract stripe for header or card backgrounds."
+      }
+    }
+  },
+  "icons": {
+    "library": "lucide-react",
+    "instructions": "Use Lucide React icons. Keep stroke-width to 1.5 or 2."
+  },
+  "accessibility": {
+    "contrast": "Ensure text over glowing elements remains readable. Use dark text (black/slate-900) inside bright neon buttons.",
+    "motion": "Respect prefers-reduced-motion for the heavy background animations, but keep the core game curve."
+  },
+  "instructions_to_main_agent": [
+    "CRITICAL: Do NOT use transparent backgrounds for the bottom nav or headers. Use heavy blur + semi-solid backgrounds.",
+    "Build the UI in JS + Tailwind. Do not use TSX since the environment is JS.",
+    "Game Curve Implementation: For the best visual, create a React component that renders an `<svg>` with a dynamic `<path>` moving from bottom-left to top-right. Add a small rocket/plane SVG or icon at the leading edge of the path.",
+    "All interactive elements MUST include a `data-testid` attribute (e.g., `data-testid=\"bet-button\"`).",
+    "Admin and Player apps should likely share the same base styling, but Player app is mobile-first, and Admin is desktop-focused grid.",
+    "Do not implement generic placeholder gradients; use solid dark grays with 1px borders.",
+    "Apply glow effects carefully: use drop-shadow on the main multiplier text, but keep surrounding text clean and sharp."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic outputs. Make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts. Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition. Eg: `transition: all`. Always add transitions for specific properties.",
+    "You MUST NOT center align the app container, ie do not add `.App { text-align: center; }`.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Main agent relies on these image URLs. Missing categories = main agent will use placeholder text which is FORBIDDEN.",
+    "Prioritize using pre-existing components from src/components/ui.",
+    "Use `sonner` for toasts. Sonner component are located in `/app/frontend/src/components/ui/sonner.jsx` or similar."
+  ]
+}
