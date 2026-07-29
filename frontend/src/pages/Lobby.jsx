@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plane, Users, Zap, TrendingUp, Gift, Play } from "lucide-react";
+import { Plane, Users, Zap, TrendingUp, Gift, Play, Mail } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { ContactUsButton } from "@/components/ContactUs";
 
 export default function Lobby() {
   const { user, refresh } = useAuth();
@@ -70,6 +71,7 @@ export default function Lobby() {
             <button onClick={claimDaily} className="btn-ghost px-5 py-3 rounded-xl flex items-center gap-2" data-testid="claim-daily-btn">
               <Gift className="w-4 h-4 text-green-400" /> Claim daily bonus
             </button>
+            <ContactUsButton className="!px-5 !py-3" />
           </div>
         </div>
       </section>
@@ -99,6 +101,19 @@ export default function Lobby() {
       <section className="grid md:grid-cols-2 gap-4">
         <InfoCard title="How it works" body="Place a bet during the waiting phase. Watch the plane fly & the multiplier climb. Cash out before it crashes to lock in your win. Auto-cashout keeps you safe." icon={Plane} />
         <InfoCard title="Provably fair" body="Every round's crash point is derived from a hashed server seed + client seed. The server seed hash is published before the round; the seed is revealed on crash." icon={Zap} />
+      </section>
+
+      {/* Contact Us */}
+      <section className="card-surface p-5 md:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative overflow-hidden">
+        <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-1">
+            <Mail className="w-5 h-5 text-cyan-300" />
+            <h3 className="font-heading font-bold text-lg">Need help?</h3>
+          </div>
+          <p className="text-sm text-slate-400">Deposit not credited or facing any issue? Reach out to us anytime — we usually reply within a few hours.</p>
+        </div>
+        <ContactUsButton className="!px-6 !py-3 self-start md:self-auto" />
       </section>
     </div>
   );
