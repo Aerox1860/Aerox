@@ -21,9 +21,11 @@ import AdminWithdrawals from "@/pages/admin/Withdrawals";
 import AdminUpi from "@/pages/admin/UpiConfig";
 import AdminGameControl from "@/pages/admin/GameControl";
 import AdminReports from "@/pages/admin/Reports";
+import AdminSupport from "@/pages/admin/Support";
 
 import PlayerLayout from "@/components/PlayerLayout";
 import ChangePassword from "@/pages/ChangePassword";
+import Support from "@/pages/Support";
 
 // Host-based routing:
 // - Hosts containing "admin" (e.g. gowin365xadmin.com) → admin-only app
@@ -74,6 +76,7 @@ function AppRoutes() {
           <Route path="upi" element={<AdminUpi />} />
           <Route path="game" element={<AdminGameControl />} />
           <Route path="reports" element={<AdminReports />} />
+          <Route path="support" element={<AdminSupport />} />
         </Route>
         <Route path="*" element={<Navigate to="/admin/login" replace />} />
       </Routes>
@@ -96,6 +99,7 @@ function AppRoutes() {
           <Route path="withdraw" element={<Withdraw />} />
           <Route path="leaderboard" element={<Leaderboard />} />
           <Route path="referrals" element={<Referrals />} />
+          <Route path="support" element={<Support />} />
           <Route path="profile" element={<Profile />} />
         </Route>
         <Route path="*" element={<Navigate to="/" />} />
@@ -119,6 +123,7 @@ function AppRoutes() {
         <Route path="withdraw" element={<Withdraw />} />
         <Route path="leaderboard" element={<Leaderboard />} />
         <Route path="referrals" element={<Referrals />} />
+        <Route path="support" element={<Support />} />
         <Route path="profile" element={<Profile />} />
       </Route>
 
@@ -130,6 +135,7 @@ function AppRoutes() {
         <Route path="upi" element={<AdminUpi />} />
         <Route path="game" element={<AdminGameControl />} />
         <Route path="reports" element={<AdminReports />} />
+        <Route path="support" element={<AdminSupport />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" />} />

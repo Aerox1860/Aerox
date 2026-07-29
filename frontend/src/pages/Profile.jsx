@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { User, Gift, TrendingUp, Award } from "lucide-react";
+import { Link } from "react-router-dom";
+import { User, Gift, TrendingUp, Award, LifeBuoy } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -50,6 +51,14 @@ export default function Profile() {
           <Gift className="w-4 h-4" /> Claim
         </button>
       </div>
+
+      <Link to="/support" className="card-surface p-5 flex items-center justify-between hover:border-cyan-500/40 transition-colors block" data-testid="profile-support-link">
+        <div>
+          <div className="font-heading font-bold flex items-center gap-2"><LifeBuoy className="w-4 h-4 text-cyan-300" /> Contact Support</div>
+          <div className="text-sm text-slate-400">Deposit not credited? Withdrawal delay? Send a ticket with your details.</div>
+        </div>
+        <div className="text-cyan-300">→</div>
+      </Link>
 
       <div className="card-surface p-5">
         <h2 className="font-heading font-bold mb-3">Recent bets</h2>

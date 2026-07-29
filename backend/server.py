@@ -12,12 +12,13 @@ import secrets
 import random
 import math
 import logging
+import requests
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
 import bcrypt
 import jwt
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, WebSocket, WebSocketDisconnect, status, UploadFile, File, Query, Header, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -37,6 +38,62 @@ DAILY_BONUS = float(os.environ.get('DAILY_BONUS', '10'))
 DEPOSIT_BONUS_PCT = float(os.environ.get('DEPOSIT_BONUS_PCT', '5'))
 REFERRAL_BONUS = float(os.environ.get('REFERRAL_BONUS', '25'))
 HOUSE_EDGE = float(os.environ.get('CRASH_HOUSE_EDGE', '0.03'))
+
+# --------------------- Object Storage ---------------------
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+APP_NAME = "aerox-crash"
+_storage_key: Optional[str] = None
+MIME_TYPES = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}
+
+
+def init_storage() -> Optional[str]:
+    global _storage_key
+    if _storage_key:
+        return _storage_key
+    if not EMERGENT_KEY:
+        return None
+    try:
+        r = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+        r.raise_for_status()
+        _storage_key = r.json()["storage_key"]
+        return _storage_key
+    except Exception as e:
+        logging.getLogger("aerox").error(f"Storage init failed: {e}")
+        return None
+
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    if not key:
+        raise HTTPException(status_code=500, detail="Storage not available")
+    r = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data, timeout=120,
+    )
+    if r.status_code == 403:
+        # session expired — reinit and retry once
+        global _storage_key
+        _storage_key = None
+        key = init_storage()
+        r = requests.put(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key, "Content-Type": content_type}, data=data, timeout=120)
+    r.raise_for_status()
+    return r.json()
+
+
+def get_object(path: str):
+    key = init_storage()
+    if not key:
+        raise HTTPException(status_code=500, detail="Storage not available")
+    r = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
+    if r.status_code == 403:
+        global _storage_key
+        _storage_key = None
+        key = init_storage()
+        r = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
+    r.raise_for_status()
+    return r.content, r.headers.get("Content-Type", "application/octet-stream")
 
 app = FastAPI()
 api = APIRouter(prefix="/api")
@@ -149,6 +206,16 @@ class ChangePasswordIn(BaseModel):
 class TempPasswordIn(BaseModel):
     user_id: str
 
+class SupportTicketIn(BaseModel):
+    subject: str = Field(min_length=1, max_length=100)
+    amount: Optional[float] = None
+    message: str = Field(min_length=1, max_length=2000)
+    screenshot_id: Optional[str] = None  # id returned by /support/upload
+
+class SupportTicketUpdateIn(BaseModel):
+    status: str  # open / in_progress / resolved / rejected
+    admin_reply: Optional[str] = None
+
 class DepositIn(BaseModel):
     amount: float = Field(gt=0)
     utr: str = Field(min_length=6, max_length=32)
@@ -235,7 +302,16 @@ async def startup():
     await db.bets.create_index("round_id")
     await db.rounds.create_index("round_id", unique=True)
     await db.chat_messages.create_index("created_at")
+    await db.support_tickets.create_index("user_id")
+    await db.support_tickets.create_index("created_at")
+    await db.support_files.create_index("id")
     await seed_admin()
+    # Init storage in background (non-blocking)
+    try:
+        init_storage()
+        logger.info("Object storage initialized")
+    except Exception as e:
+        logger.warning(f"Storage init deferred: {e}")
     # Start game loop
     asyncio.create_task(game_loop())
 
@@ -1141,6 +1217,131 @@ async def ws_endpoint(ws: WebSocket):
         pass
     finally:
         await hub.disconnect(ws)
+
+
+# --------------------- SUPPORT TICKETS ---------------------
+MAX_UPLOAD_MB = 5
+
+
+@api.post("/support/upload")
+async def upload_support_file(file: UploadFile = File(...), user: dict = Depends(current_user)):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename")
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "bin"
+    if ext not in ("jpg", "jpeg", "png", "gif", "webp"):
+        raise HTTPException(status_code=400, detail="Only JPG/PNG/GIF/WEBP images are allowed")
+    data = await file.read()
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > MAX_UPLOAD_MB * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"File exceeds {MAX_UPLOAD_MB}MB limit")
+    ct = MIME_TYPES.get(ext, file.content_type or "application/octet-stream")
+    file_id = str(uuid.uuid4())
+    path = f"{APP_NAME}/support/{user['id']}/{file_id}.{ext}"
+    try:
+        result = put_object(path, data, ct)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Upload failed")
+    rec = {
+        "id": file_id,
+        "user_id": user["id"],
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": ct,
+        "size": len(data),
+        "is_deleted": False,
+        "created_at": iso(now_utc()),
+    }
+    await db.support_files.insert_one(dict(rec))
+    return {"id": file_id, "size": len(data), "content_type": ct}
+
+
+@api.get("/support/files/{file_id}")
+async def download_support_file(file_id: str, auth: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+    # Manual auth check (supports both Authorization header and ?auth=<token> query param for <img>)
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    elif auth:
+        token = auth
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    caller = await db.users.find_one({"id": payload["sub"]})
+    if not caller:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    rec = await db.support_files.find_one({"id": file_id, "is_deleted": False})
+    if not rec:
+        raise HTTPException(status_code=404, detail="File not found")
+    # Only owner or admin can view
+    if caller.get("role") != "admin" and caller["id"] != rec["user_id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    data, ct = get_object(rec["storage_path"])
+    return Response(content=data, media_type=rec.get("content_type", ct))
+
+
+@api.post("/support/tickets")
+async def create_support_ticket(body: SupportTicketIn, user: dict = Depends(current_user)):
+    # If a screenshot_id was provided, verify it belongs to this user
+    if body.screenshot_id:
+        f = await db.support_files.find_one({"id": body.screenshot_id, "user_id": user["id"], "is_deleted": False})
+        if not f:
+            raise HTTPException(status_code=400, detail="Attached screenshot not found")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "user_email": user["email"],
+        "user_name": user.get("name", ""),
+        "subject": body.subject.strip(),
+        "amount": round(float(body.amount), 2) if body.amount is not None else None,
+        "message": body.message.strip(),
+        "screenshot_id": body.screenshot_id,
+        "status": "open",  # open / in_progress / resolved / rejected
+        "admin_reply": None,
+        "reviewed_by": None,
+        "reviewed_at": None,
+        "created_at": iso(now_utc()),
+    }
+    await db.support_tickets.insert_one(dict(doc))
+    return serialize(doc)
+
+
+@api.get("/support/tickets/mine")
+async def my_tickets(user: dict = Depends(current_user)):
+    docs = await db.support_tickets.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return docs
+
+
+@api.get("/admin/support/tickets")
+async def admin_list_tickets(status_filter: Optional[str] = None, _: dict = Depends(admin_only)):
+    q = {}
+    if status_filter:
+        q["status"] = status_filter
+    docs = await db.support_tickets.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return docs
+
+
+@api.patch("/admin/support/tickets/{ticket_id}")
+async def admin_update_ticket(ticket_id: str, body: SupportTicketUpdateIn, admin: dict = Depends(admin_only)):
+    if body.status not in ("open", "in_progress", "resolved", "rejected"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+    tkt = await db.support_tickets.find_one({"id": ticket_id})
+    if not tkt:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    await db.support_tickets.update_one({"id": ticket_id}, {"$set": {
+        "status": body.status,
+        "admin_reply": body.admin_reply,
+        "reviewed_by": admin["email"],
+        "reviewed_at": iso(now_utc()),
+    }})
+    return {"ok": True}
 
 
 # --------------------- Root ---------------------

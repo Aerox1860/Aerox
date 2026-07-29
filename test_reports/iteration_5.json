@@ -1,0 +1,56 @@
+{
+  "summary": "Iteration 5: Full E2E testing of the new Support/Contact feature (backend + frontend). Backend: 23/23 pytest cases pass in /app/backend/tests/test_support.py covering /support/upload (auth, valid image, non-image rejection, >5MB rejection), /support/files/{id} (Bearer header, ?auth= query for <img>, owner/admin/other-user/anonymous/404 cases), /support/tickets (create with/without screenshot, foreign screenshot rejection, mine-only sorted-desc, auth), and /admin/support/tickets (list, status_filter, non-admin 403, PATCH with reviewed_by/reviewed_at, invalid status 400, unknown 404, non-admin PATCH 403, user sees admin reply). Frontend: Playwright verified /support page (username prefilled+disabled, subject/amount/message/file inputs work), attach → 'Attached' green check → remove → re-attach → submit flow shows ticket in my-tickets-list with open chip + View screenshot link. Profile → support link works. Admin: /admin/support opens from sidebar, all 4 tabs render, ticket-row opens modal with subject/user/amount/message and inline screenshot (naturalWidth>0 confirms ?auth=<token> works). Setting status=resolved + reply + Save PATCHes ticket, closes modal, ticket moves from 'open' tab to 'resolved' tab, and the user's /support page shows the admin reply in a card-raised box with resolved chip.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_flows": [
+    "POST /api/support/upload — valid PNG accepted, txt rejected 400, >5MB rejected 400, unauth 401",
+    "GET /api/support/files/{id} — Bearer header 200, ?auth= query 200, other-user 403, admin 200, unknown 404, no-auth 401",
+    "POST /api/support/tickets — creates with status='open', foreign screenshot_id → 400, no-screenshot ok",
+    "GET /api/support/tickets/mine — only own tickets, sorted desc",
+    "GET /api/admin/support/tickets — admin lists all, status_filter=open|resolved works, non-admin 403",
+    "PATCH /api/admin/support/tickets/{id} — sets status/admin_reply/reviewed_by(email)/reviewed_at, invalid status 400, unknown 404, non-admin 403",
+    "Frontend player /support: support-page renders; support-username-input prefilled with user.name and disabled; support-subject-select/amount-input/message-input work",
+    "support-attach-btn hidden-file trigger + support-file-input upload → support-file-preview shows 'Attached' green check after upload completes",
+    "support-remove-file-btn clears preview and screenshot_id (re-attach works)",
+    "support-submit-btn creates ticket → appears in my-tickets-list with 'open' chip + 'View screenshot' link (opens in new tab with ?auth=<token>)",
+    "Profile page profile-support-link navigates to /support",
+    "Admin: admin-nav-support sidebar link navigates to /admin/support with admin-support container and 4 tabs (support-tab-open/in_progress/resolved/rejected)",
+    "Admin: ticket-row-<id> click opens ticket-detail-modal displaying subject/user_name/user_email/amount/message + inline ticket-screenshot (image loaded, naturalWidth>0)",
+    "Admin: ticket-reply-input + set-status-resolved + ticket-save-btn PATCHes ticket, closes modal, moves ticket from 'open' → 'resolved' tab",
+    "User side: after resolution, /support shows admin_reply in card-raised block and resolved status chip"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_support.py",
+    "/app/test_reports/pytest/support_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py MAX_UPLOAD_MB=5 correctly enforced after reading full body — for a public-facing endpoint consider streaming size check to avoid buffering large payloads in memory. Not blocking.",
+    "server.py /support/files/{file_id} manually parses Bearer/?auth= token then reuses JWT_SECRET/JWT_ALG — good; correctly returns 401 for anonymous, 403 for non-owner-non-admin, 404 for unknown. Owner check uses caller['id'] == rec['user_id']. Good.",
+    "server.py SupportTicketUpdateIn.status is plain str (no Enum), validated manually inside handler (returns 400). Acceptable; would be slightly cleaner as Literal['open','in_progress','resolved','rejected'] but current behavior matches spec exactly.",
+    "server.py admin PATCH allows admin_reply to be null/None — no lower bound. If admin blanks a reply, previous reply is overwritten with None. Confirm this is intended (currently the frontend admin modal pre-fills reply with existing t.admin_reply, so accidental blanking is unlikely).",
+    "Support.jsx amount input has min='0' but accepts empty string; server accepts Optional[float]. Consistent.",
+    "Support.jsx & admin/Support.jsx both read token via localStorage.getItem('aerox_token') for <img src=?auth=…> — matches app-wide auth storage key.",
+    "Support.jsx server rejects non-image, but client only blocks based on MIME type prefix (^image/). server extension check is authoritative — good defense in depth.",
+    "server.py support_files insert stores original_filename verbatim (could be attacker-controlled) — safe as we only display/download via storage_path (uuid path).",
+    "server.py `db.support_files.insert_one(dict(rec))` — rec already dict; dict() copy is harmless but unnecessary. Minor style.",
+    "Admin Support.jsx tab list matches backend enum exactly; no dead states. Good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_support.py (new — 23 tests)"
+  ],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "100% (16/16 spec items)"},
+  "test_credentials": "Admin: gowin365x@gmail.com / Admin@AeroX2026 (seeded). Ephemeral test users: supportflow+<hex>@aeroxtest.com / Test@1234, created via /api/auth/register.",
+  "seed_data_creation": "Each pytest class creates its own ephemeral users + fixture-scoped ticket (seeded_ticket). Playwright run creates one ephemeral user + one ticket that gets resolved. No manual cleanup of DB rows (support_files / support_tickets grow monotonically; consider a periodic prune if load testing).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression file: /app/backend/tests/test_support.py — self-contained, uses class-scoped seeded_ticket fixture to work with pytest-xdist --dist loadscope (fixtures scoped >= class run on the same worker). PNG generator (_png_bytes) is inline (no PIL dep). Full support flow verified end-to-end including screenshot rendering via ?auth=<token> query param in <img src>. No open bugs or spec violations found in this iteration.",
+  "rca of the issue": "N/A — no bugs found."
+}
