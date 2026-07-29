@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 3 — Full backend + frontend testing of duplicate-UTR detection, deposit_attempts logging, and manual credit admin flow. Backend: 11/11 pytest tests PASS in /app/backend/tests/test_deposit_attempts_and_manual.py covering: fresh UTR deposit ok, same-user dup returns 400 'You have already submitted this UTR' with attempt logged (same_user=true), cross-user dup returns 400 'This UTR is already registered to another account' logged (same_user=false), GET /api/admin/deposit-attempts returns sorted-desc list with attempting+original user info, non-admin gets 403 on /admin/deposit-attempts, POST /api/admin/deposits/manual credits user, writes deposit txn with note, creates approved deposit with utr='MANUAL-…' and manual=true visible in /admin/deposits?status_filter=approved, unknown email → 404, admin target → 400, non-admin → 403, and regression on approve (200+5% bonus credit) and reject filter. Frontend: Admin logged in via /admin/login, /admin/deposits shows 'Duplicate Attempts' tab (data-testid=deposits-tab-attempts), Manual credit button opens modal with all four fields (email/amount/note/submit), submitting ₹123 to a fresh user credits their wallet to ₹173 (50 signup + 123) and closes modal; approved tab shows the new MANUAL-… row with 'manual' chip; duplicate attempts tab shows the fresh duplicate entry with 'same user' chip, attempting email + tried amount + original submitter.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/admin/deposits — Manual credit modal",
+        "issues": [
+          "Amount input has step=\"1\" which blocks decimal amounts (e.g. 123.45 triggers browser validation 'The two nearest valid values are 123 and 124'). Backend accepts float amounts (round(x,2)). Recommend step=\"0.01\" or step=\"any\" so admin can credit exact paise amounts for network-issue recoveries where user paid, e.g., ₹199.50."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_deposit_attempts_and_manual.py",
+    "/app/test_reports/pytest/iter3_results.xml",
+    "/app/test_reports/pytest/attempts_tab.png"
+  ],
+  "action_items": [
+    "(Minor) Deposits.jsx manual amount input: change step=\"1\" → step=\"0.01\" (or \"any\") to allow decimal manual credits. Backend already accepts floats."
+  ],
+  "critical_code_review_comments": [
+    "server.py create_deposit: dup-UTR check is a find_one BEFORE insert; race between two concurrent identical UTR requests could theoretically both pass the find and one would then hit the unique index. The except-branch handles it but doesn't log an attempt in deposit_attempts (only logs when the pre-check finds it). Acceptable trade-off but worth noting.",
+    "server.py admin_manual_credit: no upper-bound sanity check on amount — an admin typo (e.g. 100000000) would silently credit. Consider adding a max threshold + audit log entry keyed to admin id for compliance.",
+    "server.py add_transaction uses field name 'ref' (not 'ref_id'); consistent within codebase but slightly non-conventional — flag for future refactor.",
+    "Deposits.jsx ManualCreditModal amount input step=1 forbids decimals (see design issue).",
+    "Deposits.jsx AttemptsTable does not paginate; /admin/deposit-attempts limit is 200. Fine for now but add pagination if attempt volume grows."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_deposit_attempts_and_manual.py (NEW — 11 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11)",
+    "frontend": "100% (all 4 targeted UI flows: tab visibility, modal opens with fields, submit credits user + refreshes list, attempts tab shows same-user chip)"
+  },
+  "test_credentials": "Admin gowin365x@gmail.com / Admin@AeroX2026 (verified). Test users created ad-hoc with pattern dup*@aeroxtest.com and fecred*@aeroxtest.com / Test@1234.",
+  "seed_data_creation": "Created ~6 throwaway regular users, 2 approved deposits (₹200+bonus + ₹123 manual), 1 rejected deposit, and ~5 new rows in deposit_attempts collection during the run. All non-destructive.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All new endpoints (/api/admin/deposit-attempts, /api/admin/deposits/manual) and duplicate-UTR logging are fully working. Only outstanding UX polish: change step=\"1\" to step=\"0.01\" on manual-amount-input. Re-use /app/backend/tests/test_deposit_attempts_and_manual.py for regression. The earlier test file /app/backend/tests/backend_test.py (23 tests from iter 1) was NOT re-executed this iteration — main agent can invoke both files together with `pytest /app/backend/tests/ -v` if desired.",
+  "rca of the issue": "N/A — feature works. Only cosmetic step=1 restricts admin to integer INR amounts."
+}

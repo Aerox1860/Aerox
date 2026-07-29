@@ -140,6 +140,11 @@ class DepositIn(BaseModel):
     utr: str = Field(min_length=6, max_length=32)
     upi_id: str
 
+class ManualCreditIn(BaseModel):
+    user_email: EmailStr
+    amount: float = Field(gt=0)
+    note: Optional[str] = None
+
 class WithdrawIn(BaseModel):
     amount: float = Field(gt=0)
     method: str  # "upi" or "bank"
@@ -208,6 +213,8 @@ async def startup():
     await db.users.create_index("referral_code", unique=True, sparse=True)
     await db.deposits.create_index("utr", unique=True)
     await db.deposits.create_index("user_id")
+    await db.deposit_attempts.create_index("created_at")
+    await db.deposit_attempts.create_index("user_id")
     await db.withdrawals.create_index("user_id")
     await db.transactions.create_index("user_id")
     await db.bets.create_index("user_id")
@@ -376,7 +383,25 @@ async def create_deposit(body: DepositIn, user: dict = Depends(current_user)):
     utr = body.utr.strip().upper()
     exists = await db.deposits.find_one({"utr": utr})
     if exists:
-        raise HTTPException(status_code=400, detail="This UTR has already been submitted")
+        # Log the attempt for admin visibility
+        await db.deposit_attempts.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "user_email": user["email"],
+            "user_name": user.get("name", ""),
+            "utr": utr,
+            "amount": round(float(body.amount), 2),
+            "original_deposit_id": exists["id"],
+            "original_user_id": exists["user_id"],
+            "original_user_email": exists.get("user_email"),
+            "original_user_name": exists.get("user_name"),
+            "original_status": exists.get("status"),
+            "same_user": exists["user_id"] == user["id"],
+            "created_at": iso(now_utc()),
+        })
+        if exists["user_id"] == user["id"]:
+            raise HTTPException(status_code=400, detail="You have already submitted this UTR")
+        raise HTTPException(status_code=400, detail=f"This UTR is already registered to another account")
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": user["id"],
@@ -389,9 +414,10 @@ async def create_deposit(body: DepositIn, user: dict = Depends(current_user)):
         "admin_note": None,
         "created_at": iso(now_utc()),
         "reviewed_at": None,
+        "manual": False,
     }
     try:
-        await db.deposits.insert_one(doc)
+        await db.deposits.insert_one(dict(doc))
     except Exception:
         raise HTTPException(status_code=400, detail="This UTR has already been submitted")
     return serialize(doc)
@@ -410,6 +436,39 @@ async def admin_list_deposits(status_filter: Optional[str] = None, _: dict = Dep
         q["status"] = status_filter
     docs = await db.deposits.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
     return docs
+
+
+@api.get("/admin/deposit-attempts")
+async def admin_deposit_attempts(_: dict = Depends(admin_only), limit: int = 200):
+    docs = await db.deposit_attempts.find({}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    return docs
+
+
+@api.post("/admin/deposits/manual")
+async def admin_manual_credit(body: ManualCreditIn, admin: dict = Depends(admin_only)):
+    target = await db.users.find_one({"email": body.user_email.lower()})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found with that email")
+    if target.get("role") == "admin":
+        raise HTTPException(status_code=400, detail="Cannot credit admin accounts")
+    amount = round(float(body.amount), 2)
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": target["id"],
+        "user_email": target["email"],
+        "user_name": target.get("name", ""),
+        "amount": amount,
+        "utr": f"MANUAL-{uuid.uuid4().hex[:10].upper()}",
+        "upi_id": "MANUAL",
+        "status": "approved",
+        "admin_note": body.note or f"Manual credit by {admin['email']}",
+        "created_at": iso(now_utc()),
+        "reviewed_at": iso(now_utc()),
+        "manual": True,
+    }
+    await db.deposits.insert_one(dict(doc))
+    await credit(target["id"], amount, "deposit", doc["admin_note"], doc["id"])
+    return serialize(doc)
 
 
 @api.post("/admin/deposits/{dep_id}/approve")
