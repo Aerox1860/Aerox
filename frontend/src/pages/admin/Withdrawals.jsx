@@ -10,7 +10,7 @@ export default function AdminWithdrawals() {
   const [rows, setRows] = useState([]);
 
   const load = () => api.get(`/admin/withdrawals?status_filter=${tab}`).then(({ data }) => setRows(data));
-  useEffect(load, [tab]); // eslint-disable-line
+  useEffect(() => { load(); }, [tab]); // eslint-disable-line
 
   const act = async (id, action) => {
     try { await api.post(`/admin/withdrawals/${id}/${action}`); toast.success(action === "approve" ? "Marked as paid" : "Rejected & refunded"); load(); }

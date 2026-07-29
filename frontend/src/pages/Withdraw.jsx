@@ -24,7 +24,7 @@ export default function Withdraw() {
   const [history, setHistory] = useState([]);
 
   const load = () => api.get("/withdrawals/mine").then(({ data }) => setHistory(data)).catch(() => {});
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const submit = async (e) => {
     e.preventDefault();

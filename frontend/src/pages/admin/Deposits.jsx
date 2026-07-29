@@ -10,7 +10,7 @@ export default function AdminDeposits() {
   const [rows, setRows] = useState([]);
 
   const load = () => api.get(`/admin/deposits?status_filter=${tab}`).then(({ data }) => setRows(data));
-  useEffect(load, [tab]); // eslint-disable-line
+  useEffect(() => { load(); }, [tab]); // eslint-disable-line
 
   const act = async (id, action) => {
     try { await api.post(`/admin/deposits/${id}/${action}`); toast.success(action === "approve" ? "Approved & credited" : "Rejected"); load(); }

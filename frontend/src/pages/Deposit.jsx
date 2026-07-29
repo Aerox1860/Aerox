@@ -22,7 +22,7 @@ export default function Deposit() {
     api.get("/upi").then(({ data }) => { setUpis(data); if (!selected && data[0]) setSelected(data[0]); }).catch(() => {});
     api.get("/deposits/mine").then(({ data }) => setHistory(data)).catch(() => {});
   };
-  useEffect(loadAll, []); // eslint-disable-line
+  useEffect(() => { loadAll(); }, []); // eslint-disable-line
 
   const submit = async (e) => {
     e.preventDefault();
