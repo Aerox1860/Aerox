@@ -67,7 +67,7 @@ export default function AdminUsers() {
                 <div className="font-medium flex items-center gap-2">
                   {u.name}
                   {u.role === "admin" && <span className="chip !text-cyan-300 !border-cyan-500/40">admin</span>}
-                  {u.must_change_password && <span className="chip !text-yellow-300 !border-yellow-500/40">temp pw</span>}
+                  {(u.has_temp_password || u.must_change_password) && <span className="chip !text-yellow-300 !border-yellow-500/40">temp pw</span>}
                 </div>
                 <div className="text-xs text-slate-500">{u.email}</div>
               </div>
