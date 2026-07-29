@@ -33,8 +33,8 @@ function Protected({ children, admin = false }) {
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
-  if (admin && user.role !== "admin") return <Navigate to="/" replace />;
+  if (!user) return <Navigate to={admin ? "/admin/login" : "/login"} replace />;
+  if (admin && user.role !== "admin") return <Navigate to="/admin/login" replace />;
   return children;
 }
 
@@ -43,6 +43,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={loading ? null : (user ? <Navigate to={user.role === 'admin' ? '/admin' : '/'} /> : <Login />)} />
+      <Route path="/admin/login" element={loading ? null : (user && user.role === 'admin' ? <Navigate to="/admin" /> : <Login adminMode />)} />
       <Route path="/register" element={loading ? null : (user ? <Navigate to="/" /> : <Register />)} />
 
       <Route path="/" element={<Protected><PlayerLayout /></Protected>}>

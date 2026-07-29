@@ -1,0 +1,23 @@
+{
+  "summary": "Frontend-only regression of the new /admin/login page and related routing. All 8 targeted scenarios PASS: (1) /admin/login renders 'AeroX Admin' branding with ShieldCheck icon + 'Admin log in' title and all required data-testids (admin-login-form, admin-login-email-input, admin-login-password-input, admin-login-submit-btn). (2) 'Not an admin? Player login' link (data-testid=switch-to-player-login) navigates to /login. (3) /login shows 'Admin portal login →' link (data-testid=go-admin-login-link) which navigates to /admin/login. (4) Visiting /admin unauthenticated correctly redirects to /admin/login (not /login). (5) Fresh regular user registration at /register succeeds and lands on /. (6) Attempting to log in as that regular user via /admin/login shows 'This account is not an admin' toast, does NOT redirect, and does NOT set a token in localStorage. (7) The same regular user logs in successfully via /login and lands on /. (8) Admin gowin365x@gmail.com / Admin@AeroX2026 logs in via /admin/login and lands on /admin dashboard ('Welcome back, Admin' toast + full admin sidebar visible).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_2.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Login.jsx: `isAdminMode` is derived from both prop AND location.pathname; keeping only the prop (already set by App route) would be cleaner and avoid ambiguity, but current logic is safe.",
+    "Non-admin lockout in Login.jsx is client-side only — the backend still returns a valid JWT for the regular user during that /admin/login attempt. Not a security risk (route guard rejects non-admins anyway), but consider adding a dedicated /api/auth/admin-login endpoint or role check server-side to prevent leaking tokens over the wire during admin-portal attempts."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "not tested (per request)", "frontend": "100% (8/8)" },
+  "test_credentials": "Admin: gowin365x@gmail.com / Admin@AeroX2026 (verified). Regular test user created during run: admincheck+<random>@aeroxtest.com / Test@1234.",
+  "seed_data_creation": "Created one throwaway regular user via /register during test T5 (admincheck+n9fzpp@aeroxtest.com / Test@1234). Non-destructive.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Admin login routing fix is fully verified. All required data-testids exist. Next iteration can focus on other AeroX flows (game rounds, deposits, withdrawals, admin CRUD). Backend was already 23/23 in iteration_1.",
+  "rca of the issue": "N/A — fix works as intended."
+}
