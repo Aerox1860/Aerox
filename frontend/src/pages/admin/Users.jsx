@@ -64,12 +64,20 @@ export default function AdminUsers() {
           {users.map((u) => (
             <div key={u.id} className="grid grid-cols-[1fr,140px,140px,220px] gap-3 items-center px-4 py-3 text-sm">
               <div>
-                <div className="font-medium flex items-center gap-2">
+                <div className="font-medium flex items-center gap-2 flex-wrap">
                   {u.name}
                   {u.role === "admin" && <span className="chip !text-cyan-300 !border-cyan-500/40">admin</span>}
                   {(u.has_temp_password || u.must_change_password) && <span className="chip !text-yellow-300 !border-yellow-500/40">temp pw</span>}
+                  {u.policy_agreed && (
+                    <span className="chip !text-green-300 !border-green-500/40" title={u.policy_agreed_at ? `Agreed on ${new Date(u.policy_agreed_at).toLocaleString()}` : "Policy agreed"}>
+                      policy ✓
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-slate-500">{u.email}</div>
+                {u.policy_agreed_at && (
+                  <div className="text-[10px] text-slate-600 mt-0.5">Agreed {new Date(u.policy_agreed_at).toLocaleDateString()}</div>
+                )}
               </div>
               <div className="font-mono">₹ {Number(u.balance || 0).toFixed(2)}</div>
               <div>{u.is_blocked ? <span className="chip !text-red-300 !border-red-500/40">blocked</span> : <span className="chip !text-green-300 !border-green-500/40">active</span>}</div>

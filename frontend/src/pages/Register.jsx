@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Plane, Loader2, Gift } from "lucide-react";
+import { Plane, Loader2, Gift, ShieldCheck } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { LegalModal, TERMS_TEXT, PRIVACY_TEXT } from "@/components/Legal";
 
 export default function Register() {
   const [params] = useSearchParams();
@@ -11,18 +12,25 @@ export default function Register() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [referral, setReferral] = useState(params.get("ref") || "");
+  const [age18, setAge18] = useState(false);
+  const [policy, setPolicy] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [modal, setModal] = useState(null); // 'terms' | 'privacy'
   const { login } = useAuth();
   const nav = useNavigate();
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!age18) return toast.error("You must confirm you are 18 or older");
+    if (!policy) return toast.error("You must accept the Terms and Privacy Policy");
     setLoading(true);
     try {
       const { data } = await api.post("/auth/register", {
         email: email.trim().toLowerCase(),
         password, name,
         referral_code: referral ? referral.toUpperCase() : null,
+        age_confirmed: age18,
+        policy_agreed: policy,
       });
       login(data.token, data.user);
       toast.success(`Welcome ${data.user.name}! ₹${data.user.balance} signup bonus credited.`);
@@ -33,6 +41,8 @@ export default function Register() {
       setLoading(false);
     }
   };
+
+  const canSubmit = age18 && policy && !loading;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10 relative overflow-hidden">
@@ -76,16 +86,40 @@ export default function Register() {
               className="w-full mt-1 bg-[#06090F] border border-white/10 rounded-lg px-3 py-2.5 outline-none focus:border-cyan-500 uppercase font-mono"
               placeholder="AB12CD" data-testid="register-referral-input" />
           </div>
-          <button type="submit" disabled={loading}
+
+          <div className="card-raised p-4 space-y-3" data-testid="register-consent-block">
+            <label className="flex gap-3 items-start cursor-pointer">
+              <input type="checkbox" checked={age18} onChange={(e) => setAge18(e.target.checked)}
+                className="mt-1 w-4 h-4 accent-cyan-500 cursor-pointer" data-testid="age-checkbox" />
+              <span className="text-sm text-slate-200 leading-snug">
+                I confirm I am <span className="text-cyan-300 font-semibold">18 years of age or older</span> and legally allowed to play in my jurisdiction.
+              </span>
+            </label>
+            <label className="flex gap-3 items-start cursor-pointer">
+              <input type="checkbox" checked={policy} onChange={(e) => setPolicy(e.target.checked)}
+                className="mt-1 w-4 h-4 accent-cyan-500 cursor-pointer" data-testid="policy-checkbox" />
+              <span className="text-sm text-slate-200 leading-snug">
+                I have read and agree to the{" "}
+                <button type="button" onClick={() => setModal("terms")} className="text-cyan-300 underline hover:text-cyan-200" data-testid="open-terms-link">Terms & Rules</button>
+                {" "}and{" "}
+                <button type="button" onClick={() => setModal("privacy")} className="text-cyan-300 underline hover:text-cyan-200" data-testid="open-privacy-link">Privacy Policy</button>.
+              </span>
+            </label>
+          </div>
+
+          <button type="submit" disabled={!canSubmit}
             className="btn-primary w-full py-3 rounded-lg flex items-center justify-center gap-2"
             data-testid="register-submit-btn">
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />} Create account
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />} Create account
           </button>
           <div className="text-sm text-slate-400 text-center">
             Already have an account? <Link to="/login" className="text-cyan-400" data-testid="go-login-link">Log in</Link>
           </div>
         </form>
       </div>
+
+      {modal === "terms" && <LegalModal title="Terms & House Rules" text={TERMS_TEXT} onClose={() => setModal(null)} />}
+      {modal === "privacy" && <LegalModal title="Privacy Policy" text={PRIVACY_TEXT} onClose={() => setModal(null)} />}
     </div>
   );
 }

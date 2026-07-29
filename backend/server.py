@@ -194,6 +194,8 @@ class RegisterIn(BaseModel):
     password: str = Field(min_length=6, max_length=100)
     name: str = Field(min_length=1, max_length=50)
     referral_code: Optional[str] = None
+    age_confirmed: bool = False
+    policy_agreed: bool = False
 
 class LoginIn(BaseModel):
     email: EmailStr
@@ -348,6 +350,10 @@ async def debit(user_id: str, amount: float, ttype: str, note: str = "", ref: Op
 # --------------------- AUTH ---------------------
 @api.post("/auth/register")
 async def register(body: RegisterIn):
+    if not body.age_confirmed:
+        raise HTTPException(status_code=400, detail="You must confirm you are 18 or older")
+    if not body.policy_agreed:
+        raise HTTPException(status_code=400, detail="You must accept the Terms and Privacy Policy")
     email = body.email.lower()
     existing = await db.users.find_one({"email": email})
     if existing:
@@ -359,6 +365,7 @@ async def register(body: RegisterIn):
             referred_by = ref["id"]
 
     uid = str(uuid.uuid4())
+    agreed_at = iso(now_utc())
     user = {
         "id": uid,
         "email": email,
@@ -371,6 +378,9 @@ async def register(body: RegisterIn):
         "is_blocked": False,
         "created_at": iso(now_utc()),
         "last_daily_bonus": None,
+        "age_confirmed": True,
+        "policy_agreed": True,
+        "policy_agreed_at": agreed_at,
     }
     await db.users.insert_one(user)
     await add_transaction(uid, "bonus", SIGNUP_BONUS, "Signup bonus")
