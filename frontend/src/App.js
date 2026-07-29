@@ -1,56 +1,83 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { Toaster } from "sonner";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import Lobby from "@/pages/Lobby";
+import Game from "@/pages/Game";
+import Wallet from "@/pages/Wallet";
+import Deposit from "@/pages/Deposit";
+import Withdraw from "@/pages/Withdraw";
+import Leaderboard from "@/pages/Leaderboard";
+import Referrals from "@/pages/Referrals";
+import Profile from "@/pages/Profile";
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+import AdminLayout from "@/components/AdminLayout";
+import AdminDashboard from "@/pages/admin/Dashboard";
+import AdminUsers from "@/pages/admin/Users";
+import AdminDeposits from "@/pages/admin/Deposits";
+import AdminWithdrawals from "@/pages/admin/Withdrawals";
+import AdminUpi from "@/pages/admin/UpiConfig";
+import AdminGameControl from "@/pages/admin/GameControl";
+import AdminReports from "@/pages/admin/Reports";
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
+import PlayerLayout from "@/components/PlayerLayout";
 
+function Protected({ children, admin = false }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-slate-400 font-mono text-sm" data-testid="loading-indicator">loading...</div>
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  if (admin && user.role !== "admin") return <Navigate to="/" replace />;
+  return children;
+}
+
+function AppRoutes() {
+  const { user, loading } = useAuth();
   return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
+    <Routes>
+      <Route path="/login" element={loading ? null : (user ? <Navigate to={user.role === 'admin' ? '/admin' : '/'} /> : <Login />)} />
+      <Route path="/register" element={loading ? null : (user ? <Navigate to="/" /> : <Register />)} />
 
-function App() {
-  return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </div>
+      <Route path="/" element={<Protected><PlayerLayout /></Protected>}>
+        <Route index element={<Lobby />} />
+        <Route path="game" element={<Game />} />
+        <Route path="wallet" element={<Wallet />} />
+        <Route path="deposit" element={<Deposit />} />
+        <Route path="withdraw" element={<Withdraw />} />
+        <Route path="leaderboard" element={<Leaderboard />} />
+        <Route path="referrals" element={<Referrals />} />
+        <Route path="profile" element={<Profile />} />
+      </Route>
+
+      <Route path="/admin" element={<Protected admin><AdminLayout /></Protected>}>
+        <Route index element={<AdminDashboard />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="deposits" element={<AdminDeposits />} />
+        <Route path="withdrawals" element={<AdminWithdrawals />} />
+        <Route path="upi" element={<AdminUpi />} />
+        <Route path="game" element={<AdminGameControl />} />
+        <Route path="reports" element={<AdminReports />} />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+        <Toaster theme="dark" position="top-right" richColors />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
