@@ -1,0 +1,50 @@
+{
+  "summary": "Iteration 7 frontend-only verification of the auto-refresh fix for /admin/users and /deposit pages. Admin Users page fix is fully verified. Deposit auto-refresh polling is verified, BUT the required Refresh button (data-testid=refresh-upi-btn) is NOT rendered in Deposit.jsx (imported icon and refreshing state exist but no <button> element in JSX).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Deposit.jsx",
+        "issue": "Refresh button with data-testid='refresh-upi-btn' is missing. The file imports RefreshCw and maintains a 'refreshing' state, but no <button> is rendered next to the 'Choose an admin UPI' header (or anywhere else). Query count = 0. Users cannot manually trigger a refresh; only the 15s poll / focus listener works.",
+        "selector": "[data-testid='refresh-upi-btn']",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Deposit.jsx UPI card",
+        "issue": "Hydration warning in console: '<button> cannot be a descendant of <button>'. The 'Copy UPI' button and 'View QR' anchor are nested inside the outer <button> that represents the UPI option. Pre-existing structural issue.",
+        "selector": "[data-testid^='upi-option-'] button",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_scenarios": [
+    "Admin /admin/users renders Refresh button (data-testid=refresh-users-btn) and heading 'Users (42)'.",
+    "Registering a new user via POST /api/auth/register then clicking Refresh updates heading to 'Users (43)' and the new user email appears in the DOM immediately.",
+    "Search filter q='refresh138nk0' produces 'Users (1)'; after 17s auto-refresh the input value, heading, and single filtered row are ALL preserved (qRef preservation works).",
+    "Auto-refresh polling on /deposit works: admin PATCH /api/admin/upi/{id} changed label to 'Nagendra AutoRefreshTest' and the user's /deposit tab updated within 17s without any manual interaction. Previously-selected UPI stayed selected.",
+    "GET /api/upi returns active UPIs; PATCH /api/admin/upi/{id} works with body {label, upi_id, qr_url, active}."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Add the missing Refresh button to /app/frontend/src/pages/Deposit.jsx (data-testid='refresh-upi-btn'). Suggested placement: next to the 'Choose an admin UPI' header. Example: wrap that header in a flex row with a button that calls loadAll() and shows RefreshCw with animate-spin when 'refreshing' is true — mirroring the pattern already used in admin/Users.jsx.",
+    "Optional: fix the nested <button> hydration warning inside UPI option cards by converting the outer element to a div with role='button' or moving the Copy/View QR actions outside the option button."
+  ],
+  "critical_code_review_comments": [
+    "Deposit.jsx line 3 imports RefreshCw but does not use it in JSX — dead import indicating the Refresh UI was never wired up.",
+    "Deposit.jsx maintains 'refreshing' state but never surfaces it to the user (no spinner, no button). Consider surfacing at least a subtle indicator.",
+    "Both pages use setInterval without visibilitychange pause — polling continues while tab is hidden. Users.jsx additionally lacks a visibilitychange listener (only focus + interval), inconsistent with Deposit.jsx which listens to both. Minor."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "85% (5/6 scenarios pass; refresh-upi-btn missing)"},
+  "test_credentials": "Admin gowin365x@gmail.com / Admin@AeroX2026; User testuser@aerox.com / Test@1234; Created test user refresh138nk0@aeroxtest.com / Test@1234 (leftover in DB).",
+  "seed_data_creation": "One new user registered during test: refresh138nk0@aeroxtest.com (Refresh Test 138nk0). Safe to leave; can be cleaned by main agent if desired.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The Deposit page still lacks the Refresh button element in JSX. Once main agent adds it, re-verify by loading /deposit and asserting [data-testid='refresh-upi-btn'] is visible and clickable. All other iteration-7 acceptance criteria already pass on preview.",
+  "rca of the issue": "Deposit.jsx has the loadAll() and interval/focus listeners wired correctly (line 22-53) and the 'refreshing' state variable, but the developer forgot to add the visible Refresh <button> in the JSX. The corresponding change was made in admin/Users.jsx (lines 66-71) but was omitted for Deposit.jsx. Fix: add a header row containing the section title and a button with onClick={loadAll} disabled={refreshing} and data-testid='refresh-upi-btn'."
+}

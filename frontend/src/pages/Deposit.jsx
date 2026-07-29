@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Copy, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { Copy, CheckCircle2, Clock, XCircle, RefreshCw } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 
 const statusStyle = {
@@ -17,12 +17,40 @@ export default function Deposit() {
   const [utr, setUtr] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [history, setHistory] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadAll = () => {
-    api.get("/upi").then(({ data }) => { setUpis(data); if (!selected && data[0]) setSelected(data[0]); }).catch(() => {});
-    api.get("/deposits/mine").then(({ data }) => setHistory(data)).catch(() => {});
+  const loadAll = async () => {
+    setRefreshing(true);
+    try {
+      const [u, h] = await Promise.all([
+        api.get("/upi"),
+        api.get("/deposits/mine"),
+      ]);
+      setUpis(u.data);
+      setSelected((prev) => {
+        if (prev) {
+          const found = u.data.find((x) => x.id === prev.id);
+          return found || u.data[0] || null;
+        }
+        return u.data[0] || null;
+      });
+      setHistory(h.data);
+    } catch {} finally { setRefreshing(false); }
   };
-  useEffect(() => { loadAll(); }, []); // eslint-disable-line
+  useEffect(() => {
+    loadAll();
+    // Auto-refresh on tab focus & every 15s
+    const onFocus = () => loadAll();
+    const onVis = () => { if (!document.hidden) loadAll(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    const t = setInterval(loadAll, 15000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+      clearInterval(t);
+    };
+  }, []); // eslint-disable-line
 
   const submit = async (e) => {
     e.preventDefault();
