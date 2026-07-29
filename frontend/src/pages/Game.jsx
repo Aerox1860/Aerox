@@ -316,10 +316,62 @@ function CrashCanvas({ multiplier, status }) {
         {/* Curve */}
         <path d={path} stroke={crashed ? "#ef4444" : "url(#curveGrad)"} strokeWidth="3" fill="none" strokeLinecap="round" />
 
-        {/* Plane at leading edge */}
+        {/* Jet plane at leading edge */}
         <g transform={`translate(${endX} ${endY}) rotate(${-45 * progress})`}>
-          <circle r="18" fill={crashed ? "#ef4444" : "#22d3ee"} fillOpacity="0.18" />
-          <circle r="6" fill={crashed ? "#ef4444" : "#22d3ee"} />
+          {/* Glow halo */}
+          <circle r="26" fill={crashed ? "#ef4444" : "#22d3ee"} fillOpacity="0.18" />
+          <circle r="16" fill={crashed ? "#ef4444" : "#22d3ee"} fillOpacity="0.12" />
+
+          {/* Fuselage */}
+          <ellipse cx="0" cy="0" rx="18" ry="4"
+            fill={crashed ? "#7f1d1d" : "#0F1423"}
+            stroke={crashed ? "#ef4444" : "#22d3ee"} strokeWidth="1.5" />
+
+          {/* Wings (delta) */}
+          <path d="M 2,-2.5 L -10,-16 L -2,-16 L 6,-2.5 Z"
+            fill={crashed ? "#ef4444" : "#22d3ee"} opacity="0.95" />
+          <path d="M 2,2.5 L -10,16 L -2,16 L 6,2.5 Z"
+            fill={crashed ? "#ef4444" : "#22d3ee"} opacity="0.95" />
+
+          {/* Tail fin */}
+          <path d="M -14,-3 L -22,-10 L -18,0 L -22,10 L -14,3 Z"
+            fill={crashed ? "#ef4444" : "#22c55e"} opacity="0.95" />
+
+          {/* Cockpit window */}
+          <ellipse cx="6" cy="0" rx="4" ry="2.2"
+            fill={crashed ? "#7f1d1d" : "#22d3ee"} opacity="0.85" />
+
+          {/* Spinning propeller / jet fan at nose */}
+          <g transform="translate(18, 0)">
+            <g>
+              {!crashed && (
+                <animateTransform attributeName="transform" type="rotate"
+                  from="0 0 0" to="360 0 0" dur="0.12s" repeatCount="indefinite" />
+              )}
+              {/* Motion blur disk */}
+              {!crashed && <ellipse rx="2" ry="9" fill="#22d3ee" opacity="0.35" />}
+              {/* Blades (4-blade fan) */}
+              <line x1="0" y1="-9" x2="0" y2="9" stroke={crashed ? "#ef4444" : "#F8FAFC"} strokeWidth="1.8" strokeLinecap="round" />
+              <line x1="-9" y1="0" x2="9" y2="0" stroke={crashed ? "#ef4444" : "#F8FAFC"} strokeWidth="1.8" strokeLinecap="round" />
+              <line x1="-6.5" y1="-6.5" x2="6.5" y2="6.5" stroke={crashed ? "#ef4444" : "#F8FAFC"} strokeWidth="1.2" strokeLinecap="round" opacity="0.7" />
+              <line x1="-6.5" y1="6.5" x2="6.5" y2="-6.5" stroke={crashed ? "#ef4444" : "#F8FAFC"} strokeWidth="1.2" strokeLinecap="round" opacity="0.7" />
+              {/* Hub */}
+              <circle r="2" fill={crashed ? "#ef4444" : "#22c55e"} />
+            </g>
+          </g>
+
+          {/* Engine exhaust flame when flying */}
+          {!crashed && flying && (
+            <g transform="translate(-18, 0)">
+              <ellipse rx="6" ry="2" fill="#22c55e" opacity="0.55">
+                <animate attributeName="rx" values="4;8;4" dur="0.25s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.7;0.35;0.7" dur="0.25s" repeatCount="indefinite" />
+              </ellipse>
+              <ellipse cx="-4" cy="0" rx="3" ry="1.2" fill="#22d3ee" opacity="0.8">
+                <animate attributeName="rx" values="2;4;2" dur="0.2s" repeatCount="indefinite" />
+              </ellipse>
+            </g>
+          )}
         </g>
       </svg>
 
