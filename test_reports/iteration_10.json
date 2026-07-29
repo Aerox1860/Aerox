@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 10 — comprehensive URL/route smoke test on preview (https://aerox-wallet.preview.emergentagent.com). Verified 33/33 route + data-testid checks pass. Public routes (/, /login, /admin, /admin/login, /register, /change-password) render correct forms and enforce unauth redirects. Register flow with age+policy consent lands on Lobby. testuser login lands on Lobby. Admin login lands on /admin dashboard. Regular user creds at /admin/login correctly shows 'This account is not an admin' error and does NOT redirect. All 9 player routes render with expected data-testids (lobby-page, game-page, wallet-page, deposit-page, withdraw-page, leaderboard-page, referrals-page, support-page, profile-page) plus required child controls (contact-us-btn, refresh-txns-btn, refresh-upi-btn). All 8 admin routes render (admin-dashboard, admin-users, admin-deposits, admin-withdrawals, admin-upi, admin-support, admin-game, admin-reports) with required controls (refresh-users-btn, manual-credit-btn) and count headings ('Users (44)', 'Deposits (5)', 'Withdrawals (3)', 'Support tickets (5)'). Catch-all: /some-unknown-url as user → /. /admin/nonsense as admin → /. Logout returns to /login. Mobile bottom nav (375x812) — all 5 nav-* testids clickable and navigate correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Deposit.jsx", "issue": "Hydration error: <button> nested inside <button>. UPI card wrapper is a <button> and contains an inner 'Copy UPI' <button type=button>. React logs: 'In HTML, <button> cannot be a descendant of <button>. This will cause a hydration error.' Fix: change outer element to a div with onClick+role='button' (keeping data-testid=upi-option-{id}), or move Copy UPI action outside the card.", "selector": "[data-testid^='upi-option-']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Realtime updates", "issue": "WebSocket connection to wss://<preview>/api/ws fails on every page ('WebSocket is closed before the connection is established.'). Non-blocking because polling covers state sync, but the failed WS should either be removed or the endpoint fixed to avoid noise + reconnection churn.", "affected_selectors": []}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix nested <button> in /app/frontend/src/pages/Deposit.jsx line 99 (outer) + line 108 (inner Copy UPI). Convert outer to a <div role='button' tabIndex={0}> with onClick/onKeyDown, or lift the Copy UPI + QR actions out of the clickable UPI card so no button is nested. This triggers a React hydration warning on every visit to /deposit.",
+    "Investigate wss:///api/ws failure — either implement a working WS endpoint or remove the client-side WS connect attempt to reduce console noise."
+  ],
+  "critical_code_review_comments": [
+    "Deposit.jsx: <button> nested inside <button> is invalid HTML and produces a React hydration error in production. Must be fixed.",
+    "Realtime WS: /api/ws is being connected from the client but the connection is closed before opening on the preview host. Either wire it up or gate the connect behind an env flag."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100% route smoke (33/33 route+testid checks) — 1 non-blocking hydration warning + 1 WS warning"},
+  "test_credentials": "Admin: gowin365x@gmail.com / Admin@AeroX2026 (works). User: testuser@aerox.com / Test@1234 (works). Registered fresh user smoke_1785338755@aerox.com / Smoke@1234 during test.",
+  "seed_data_creation": "Registered 1 fresh user 'smoke_1785338755@aerox.com' via UI to verify /register happy path. No admin data mutated.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All URLs and data-testids on preview are healthy as of iteration 10. Only two open non-blocking items: (1) Deposit.jsx nested <button> hydration warning, (2) wss://<host>/api/ws failing to connect. Neither breaks user flows. Recent code changes (Game.jsx grid key + tests reading admin creds from env) verified not to have regressed any route.",
+  "rca of the issue": "N/A — no functional bugs observed. Nested-button warning in Deposit.jsx comes from outer <button key=u.id> wrapping an inner <button> for Copy UPI (Deposit.jsx line 99 wraps line 108)."
+}
