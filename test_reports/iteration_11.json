@@ -1,0 +1,23 @@
+{
+  "summary": "Iteration 11 targeted retest: verified nested <button> hydration warning is resolved on /deposit and UPI card interactions still work correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Deposit.jsx UPI card correctly uses <div role='button' tabIndex={0} onClick onKeyDown> — accessible replacement for outer <button>.",
+    "Inner Copy UPI button and View QR anchor both call e.stopPropagation() — event bubbling to outer card selection is prevented."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100%"},
+  "test_credentials": "testuser@aerox.com / Test@1234",
+  "seed_data_creation": "None — used existing 'Nagendra' UPI (7997608934-8@ybl).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Deposit page nested-button hydration warning fixed. Verified: (1) console has ZERO nested-button / hydration / descendant warnings on /deposit navigation & interactions, (2) clicking upi-option-<id> selects card (blue border + 'selected' chip), (3) Copy UPI inner button copies value ('Copied' toast) and does NOT deselect card (stopPropagation OK), (4) Space/Enter key on focused card triggers selection without errors, (5) QR link absent for tested UPI but code path has stopPropagation. Only 1 UPI configured so Enter-on-2nd-card path not exercised, but Space on focused card was tested without regression. Backend testing skipped per request.",
+  "rca of the issue": "Root cause of prior hydration warning: outer UPI card was a <button> containing inner <button> (Copy UPI) and <a> (View QR). React/HTML disallows interactive descendants inside a <button>. Fix: outer element changed to <div role='button' tabIndex={0} onClick onKeyDown> preserving semantics + accessibility, while inner interactive elements retain e.stopPropagation() so bubbling does not double-fire card select. Verified in Iter 11 — no warnings emitted, all behaviors preserved."
+}

@@ -96,8 +96,11 @@ export default function Deposit() {
         {upis.length === 0 && <div className="text-sm text-slate-500">No UPI configured yet. Contact support.</div>}
         <div className="grid sm:grid-cols-2 gap-3">
           {upis.map((u) => (
-            <button key={u.id} onClick={() => setSelected(u)}
-              className={`text-left p-4 rounded-xl border transition-colors ${selected?.id === u.id ? "border-cyan-500/70 bg-cyan-500/5" : "border-white/10 bg-[#06090F] hover:border-white/20"}`}
+            <div key={u.id}
+              role="button" tabIndex={0}
+              onClick={() => setSelected(u)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(u); } }}
+              className={`cursor-pointer text-left p-4 rounded-xl border transition-colors ${selected?.id === u.id ? "border-cyan-500/70 bg-cyan-500/5" : "border-white/10 bg-[#06090F] hover:border-white/20"}`}
               data-testid={`upi-option-${u.id}`}>
               <div className="flex items-center justify-between">
                 <div className="font-semibold">{u.label}</div>
@@ -108,9 +111,9 @@ export default function Deposit() {
                 <button type="button" onClick={(e) => { e.stopPropagation(); copy(u.upi_id); }} className="btn-ghost px-2 py-1 rounded text-xs flex items-center gap-1">
                   <Copy className="w-3 h-3" /> Copy UPI
                 </button>
-                {u.qr_url && <a href={u.qr_url} target="_blank" rel="noreferrer" className="btn-ghost px-2 py-1 rounded text-xs">View QR</a>}
+                {u.qr_url && <a href={u.qr_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="btn-ghost px-2 py-1 rounded text-xs">View QR</a>}
               </div>
-            </button>
+            </div>
           ))}
         </div>
       </div>
