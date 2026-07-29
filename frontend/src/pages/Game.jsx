@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Plane, Send, TrendingUp, Users, MessageCircle } from "lucide-react";
+import { Plane, Send, TrendingUp, Users, MessageCircle, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError, wsUrl } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { primeAudio, startEngine, stopEngine, pitchEngine, playCrash, playCashout, playBet, playTick, playGo, setMuted, getMuted } from "@/lib/sounds";
 
 const CHIP_AMOUNTS = [10, 50, 100, 500, 1000];
 
@@ -19,8 +20,19 @@ export default function Game() {
   const [chatText, setChatText] = useState("");
   const [showChat, setShowChat] = useState(false);
   const [flash, setFlash] = useState(null); // {type:'win'|'lose', text}
+  const [muted, setMutedState] = useState(getMuted());
   const wsRef = useRef(null);
   const chatEndRef = useRef(null);
+  const prevStatusRef = useRef(null);
+  const prevCountdownRef = useRef(null);
+
+  const toggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    setMutedState(next);
+    if (next) stopEngine();
+    primeAudio();
+  };
 
   // Load initial chat
   useEffect(() => {
@@ -86,7 +98,43 @@ export default function Game() {
     if (chatEndRef.current) chatEndRef.current.scrollTop = chatEndRef.current.scrollHeight;
   }, [chatMsgs, showChat]);
 
+  // Sound state machine — reacts to state.status + countdown + multiplier
+  useEffect(() => {
+    if (muted) return;
+    const prevStatus = prevStatusRef.current;
+    const status = state.status;
+
+    // waiting → flying: engine start + GO chime
+    if (prevStatus !== "flying" && status === "flying") {
+      playGo();
+      startEngine();
+    }
+    // flying → crashed: crash sound + stop engine
+    if (prevStatus === "flying" && status === "crashed") {
+      stopEngine();
+      playCrash();
+    }
+    // pitch engine to multiplier
+    if (status === "flying") pitchEngine(state.multiplier);
+
+    prevStatusRef.current = status;
+  }, [state.status, state.multiplier, muted]);
+
+  // Countdown tick sounds
+  useEffect(() => {
+    if (muted) return;
+    const c = countdown;
+    if (c !== null && c !== prevCountdownRef.current && c > 0 && c <= 3) playTick();
+    prevCountdownRef.current = c;
+  }, [countdown, muted]);
+
+  // Cleanup engine on unmount
+  useEffect(() => {
+    return () => stopEngine();
+  }, []);
+
   const placeBet = async () => {
+    primeAudio();
     if (state.status !== "waiting") return toast.error("Betting is closed");
     if (!amount || amount < 10) return toast.error("Minimum bet is ₹10");
     setPlacing(true);
@@ -96,6 +144,7 @@ export default function Game() {
       const { data } = await api.post("/game/bet", body);
       setMyBet(data);
       myBetRef.current = data;
+      if (!muted) playBet();
       toast.success(`Bet placed: ₹${amount}`);
       refresh();
     } catch (e) {
@@ -110,6 +159,7 @@ export default function Game() {
       const { data } = await api.post("/game/cashout");
       setMyBet(data);
       myBetRef.current = data;
+      if (!muted) playCashout();
       refresh();
     } catch (e) {
       toast.error(formatApiError(e));
@@ -143,9 +193,19 @@ export default function Game() {
                 <span className="chip !border-cyan-500/40 !text-cyan-300 font-mono">starts in {countdown}s</span>
               )}
             </div>
-            <button className="md:hidden btn-ghost px-3 py-1.5 rounded-lg text-xs flex items-center gap-1" onClick={() => setShowChat((s) => !s)} data-testid="toggle-chat-btn">
-              <MessageCircle className="w-3.5 h-3.5" /> Chat
-            </button>
+            <div className="flex items-center gap-2">
+              <button className="md:hidden btn-ghost px-3 py-1.5 rounded-lg text-xs flex items-center gap-1" onClick={() => setShowChat((s) => !s)} data-testid="toggle-chat-btn">
+                <MessageCircle className="w-3.5 h-3.5" /> Chat
+              </button>
+              <button
+                onClick={toggleMute}
+                className="btn-ghost px-3 py-1.5 rounded-lg text-xs flex items-center gap-1"
+                data-testid="toggle-mute-btn"
+                title={muted ? "Unmute" : "Mute"}
+              >
+                {muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-cyan-300" />}
+              </button>
+            </div>
           </div>
 
           <CrashCanvas multiplier={state.multiplier} status={state.status} />
