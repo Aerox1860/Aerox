@@ -20,8 +20,8 @@ if not BASE:
 BASE = BASE.rstrip("/")
 API = f"{BASE}/api"
 
-ADMIN_EMAIL = "gowin365x@gmail.com"
-ADMIN_PASSWORD = "Admin@AeroX2026"
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "gowin365x@gmail.com")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin@AeroX2026")
 
 
 def _png_bytes(w=2, h=2, color=(255, 0, 0, 255)) -> bytes:

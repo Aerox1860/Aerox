@@ -366,8 +366,8 @@ function CrashCanvas({ multiplier, status }) {
         </defs>
 
         {/* Grid */}
-        {[0.2, 0.4, 0.6, 0.8].map((p, i) => (
-          <line key={i} x1="30" x2={width - 30} y1={height * (1 - p)} y2={height * (1 - p)}
+        {[0.2, 0.4, 0.6, 0.8].map((p) => (
+          <line key={`grid-${p}`} x1="30" x2={width - 30} y1={height * (1 - p)} y2={height * (1 - p)}
             stroke="rgba(255,255,255,0.05)" strokeDasharray="4 6" />
         ))}
 

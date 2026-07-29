@@ -5,6 +5,7 @@ daily bonus, game state/bet/cashout, leaderboard, chat, admin dashboard,
 block/adjust, admin game pause, non-admin 403.
 """
 import os
+import os
 import time
 import uuid
 import requests
@@ -24,8 +25,8 @@ if not BASE:
 BASE = BASE.rstrip("/")
 API = f"{BASE}/api"
 
-ADMIN_EMAIL = "gowin365x@gmail.com"
-ADMIN_PASSWORD = "Admin@AeroX2026"
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "gowin365x@gmail.com")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin@AeroX2026")
 
 
 def _uniq(prefix="TEST"):
