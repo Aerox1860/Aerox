@@ -28,14 +28,13 @@ import ChangePassword from "@/pages/ChangePassword";
 import Support from "@/pages/Support";
 
 // Host-based routing:
-// - Hosts containing "admin" (e.g. gowin365xadmin.com) → admin-only app
-// - All other hosts (e.g. gowin365x.com) → player-only app
-// Preview/local host `aerox-wallet.preview.emergentagent.com` allows both.
+// - Hosts containing "admin" (e.g. admin.gowin365x.com or gowin365xadmin.com) → admin-only app
+// - All other hosts → FULL app (both player and admin available)
+//   Admins access via /admin/login, players via /login on the same domain.
 function detectHostMode() {
   if (typeof window === "undefined") return "both";
   const h = window.location.hostname.toLowerCase();
   if (h.includes("admin")) return "admin";
-  if (h.includes("gowin365x") || h.includes("aeroxplayer")) return "player";
   return "both";
 }
 
