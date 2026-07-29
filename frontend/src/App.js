@@ -24,6 +24,20 @@ import AdminReports from "@/pages/admin/Reports";
 
 import PlayerLayout from "@/components/PlayerLayout";
 
+// Host-based routing:
+// - Hosts containing "admin" (e.g. gowin365xadmin.com) → admin-only app
+// - All other hosts (e.g. gowin365x.com) → player-only app
+// Preview/local host `aerox-wallet.preview.emergentagent.com` allows both.
+function detectHostMode() {
+  if (typeof window === "undefined") return "both";
+  const h = window.location.hostname.toLowerCase();
+  if (h.includes("admin")) return "admin";
+  if (h.includes("gowin365x") || h.includes("aeroxplayer")) return "player";
+  return "both";
+}
+
+const HOST_MODE = detectHostMode();
+
 function Protected({ children, admin = false }) {
   const { user, loading } = useAuth();
   if (loading) {
@@ -40,6 +54,51 @@ function Protected({ children, admin = false }) {
 
 function AppRoutes() {
   const { user, loading } = useAuth();
+
+  // Admin-only host: EVERYTHING is admin. Any URL redirects to admin login/dashboard.
+  if (HOST_MODE === "admin") {
+    return (
+      <Routes>
+        <Route path="/login" element={<Navigate to="/admin/login" replace />} />
+        <Route path="/register" element={<Navigate to="/admin/login" replace />} />
+        <Route path="/admin/login" element={loading ? null : (user && user.role === 'admin' ? <Navigate to="/admin" /> : <Login adminMode />)} />
+        <Route path="/admin" element={<Protected admin><AdminLayout /></Protected>}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="deposits" element={<AdminDeposits />} />
+          <Route path="withdrawals" element={<AdminWithdrawals />} />
+          <Route path="upi" element={<AdminUpi />} />
+          <Route path="game" element={<AdminGameControl />} />
+          <Route path="reports" element={<AdminReports />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/admin/login" replace />} />
+      </Routes>
+    );
+  }
+
+  // Player-only host: admin routes redirect to player login (no admin surface exposed)
+  if (HOST_MODE === "player") {
+    return (
+      <Routes>
+        <Route path="/login" element={loading ? null : (user ? <Navigate to="/" /> : <Login />)} />
+        <Route path="/register" element={loading ? null : (user ? <Navigate to="/" /> : <Register />)} />
+        <Route path="/admin/*" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<Protected><PlayerLayout /></Protected>}>
+          <Route index element={<Lobby />} />
+          <Route path="game" element={<Game />} />
+          <Route path="wallet" element={<Wallet />} />
+          <Route path="deposit" element={<Deposit />} />
+          <Route path="withdraw" element={<Withdraw />} />
+          <Route path="leaderboard" element={<Leaderboard />} />
+          <Route path="referrals" element={<Referrals />} />
+          <Route path="profile" element={<Profile />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    );
+  }
+
+  // "both" mode — preview URL / local dev — full app available
   return (
     <Routes>
       <Route path="/login" element={loading ? null : (user ? <Navigate to={user.role === 'admin' ? '/admin' : '/'} /> : <Login />)} />
