@@ -270,7 +270,7 @@ export default function RouletteTableGrid({
           preserveAspectRatio="none"
           style={{ pointerEvents: "none", overflow: "visible" }}
         >
-          {/* Splits — thin yellow lines between adjacent cells */}
+          {/* Splits — INVISIBLE clickable line between adjacent cells (chip appears when placed) */}
           {splits.map((h) => {
             const isVert = h.orient === "v";
             const x1 = isVert ? h.x : h.x - CELL_W * 0.4;
@@ -289,123 +289,79 @@ export default function RouletteTableGrid({
                 >
                   <title>{`Split ${h.nums.join(" · ")} — 17:1`}</title>
                 </line>
-                <line
-                  x1={x1} y1={y1} x2={x2} y2={y2}
-                  stroke={placed ? "#facc15" : "rgba(250,204,21,0.85)"}
-                  strokeWidth={placed ? 3.5 : 2.5}
-                  strokeLinecap="round"
-                  pointerEvents="none"
-                />
-                {placed && (
-                  <ChipDot cx={h.x} cy={h.y} amount={bets[h.key]} />
-                )}
+                {placed && <ChipDot cx={h.x} cy={h.y} amount={bets[h.key]} />}
               </g>
             );
           })}
 
-          {/* Corners — cyan dots at 4-cell intersections */}
+          {/* Corners — INVISIBLE clickable circle at 4-cell intersections */}
           {corners.map((h) => {
             const placed = !!bets[h.key];
             return (
               <g key={h.key}>
                 <circle
-                  cx={h.x} cy={h.y} r={11}
-                  fill={placed ? "rgba(250,204,21,0.4)" : "rgba(34,211,238,0.15)"}
-                  stroke={placed ? "rgba(250,204,21,1)" : "rgba(34,211,238,0.9)"}
-                  strokeWidth={placed ? 2 : 1.5}
+                  cx={h.x} cy={h.y} r={13}
+                  fill="transparent"
                   style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
                   data-testid={`hotspot-${h.key}`}
                   onClick={() => onPlace(h.key)}
                 >
                   <title>{`Corner ${h.nums.join(" · ")} — 8:1`}</title>
                 </circle>
-                {!placed && (
-                  <text
-                    x={h.x} y={h.y}
-                    fill="rgba(255,255,255,0.9)" fontSize={9} fontWeight={900}
-                    textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
-                  >+</text>
-                )}
                 {placed && <ChipDot cx={h.x} cy={h.y} amount={bets[h.key]} />}
               </g>
             );
           })}
 
-          {/* Streets and trios */}
+          {/* Streets and trios — INVISIBLE hitboxes; chip shows on placement */}
           {streets.map((h) => {
             const placed = !!bets[h.key];
             if (h.kind === "trio") {
               return (
                 <g key={h.key}>
                   <circle
-                    cx={h.x} cy={h.y} r={13}
-                    fill={placed ? "rgba(250,204,21,0.4)" : "rgba(34,211,238,0.18)"}
-                    stroke={placed ? "rgba(250,204,21,1)" : "rgba(34,211,238,0.9)"}
-                    strokeWidth={placed ? 2 : 1.5}
+                    cx={h.x} cy={h.y} r={14}
+                    fill="transparent"
                     style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
                     data-testid={`hotspot-${h.key}`}
                     onClick={() => onPlace(h.key)}
                   >
                     <title>{`Trio ${h.nums.join(" · ")} — 11:1`}</title>
                   </circle>
-                  {!placed && (
-                    <text
-                      x={h.x} y={h.y}
-                      fill="rgba(255,255,255,0.95)" fontSize={9} fontWeight={900}
-                      textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
-                    >{h.label}</text>
-                  )}
                   {placed && <ChipDot cx={h.x} cy={h.y} amount={bets[h.key]} />}
                 </g>
               );
             }
-            // Regular row-street: yellow line on right outer edge
             return (
               <g key={h.key}>
                 <line
                   x1={h.x} y1={h.y - CELL_H * 0.4} x2={h.x} y2={h.y + CELL_H * 0.4}
-                  stroke="transparent" strokeWidth={20} strokeLinecap="round"
+                  stroke="transparent" strokeWidth={22} strokeLinecap="round"
                   style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
                   data-testid={`hotspot-${h.key}`}
                   onClick={() => onPlace(h.key)}
                 >
                   <title>{`Street ${h.nums.join(" · ")} — 11:1`}</title>
                 </line>
-                <line
-                  x1={h.x} y1={h.y - CELL_H * 0.4} x2={h.x} y2={h.y + CELL_H * 0.4}
-                  stroke={placed ? "#facc15" : "rgba(250,204,21,0.85)"}
-                  strokeWidth={placed ? 4 : 3}
-                  strokeLinecap="round"
-                  pointerEvents="none"
-                />
                 {placed && <ChipDot cx={h.x} cy={h.y} amount={bets[h.key]} />}
               </g>
             );
           })}
 
-          {/* Six-lines — cyan "6" dots on the RIGHT edge between two rows */}
+          {/* Six-lines — INVISIBLE clickable circle between rows on right edge */}
           {sixLines.map((h) => {
             const placed = !!bets[h.key];
             return (
               <g key={h.key}>
                 <circle
-                  cx={h.x} cy={h.y} r={11}
-                  fill={placed ? "rgba(250,204,21,0.4)" : "rgba(34,211,238,0.15)"}
-                  stroke={placed ? "rgba(250,204,21,1)" : "rgba(34,211,238,0.85)"}
-                  strokeWidth={placed ? 2 : 1.5}
+                  cx={h.x} cy={h.y} r={12}
+                  fill="transparent"
                   style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
                   data-testid={`hotspot-${h.key}`}
                   onClick={() => onPlace(h.key)}
                 >
                   <title>{`Six-Line ${h.nums.join(" · ")} — 5:1`}</title>
                 </circle>
-                {!placed && (
-                  <text
-                    x={h.x} y={h.y}
-                    fill="rgba(255,255,255,0.9)" fontSize={8} fontWeight={900}
-                    textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
-                  >6</text>
-                )}
                 {placed && <ChipDot cx={h.x} cy={h.y} amount={bets[h.key]} />}
               </g>
             );
