@@ -44,21 +44,25 @@ export default function RouletteTableGrid({
 
   const numCell = (n) => {
     const c = colorOf(n);
-    const bg =
+    const ovalBg =
       c === "green"
-        ? "bg-emerald-600 hover:bg-emerald-500"
+        ? "bg-emerald-600"
         : c === "red"
-        ? "bg-red-600 hover:bg-red-500"
-        : "bg-neutral-900 hover:bg-neutral-800";
+        ? "bg-red-600"
+        : "bg-neutral-900";
     const winHighlight = resultNumber === n ? "ring-2 ring-yellow-300" : "";
     return (
       <button
         key={`n-${n}`}
         onClick={() => !disabled && onPlace(`straight_${n}`)}
         data-testid={`bet-straight-${n}`}
-        className={`relative aspect-[3/2] ${bg} ${winHighlight} rounded-lg border border-white/25 text-white font-heading font-bold text-sm md:text-base grid place-items-center transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-2px_0_rgba(0,0,0,0.35)] ${disabled ? "pointer-events-none" : ""}`}
+        className={`relative aspect-[3/2] border border-white/70 grid place-items-center transition-all bg-emerald-800/40 hover:bg-emerald-700/50 ${disabled ? "pointer-events-none" : ""}`}
       >
-        {n}
+        <span
+          className={`inline-flex items-center justify-center w-[70%] aspect-square rounded-full ${ovalBg} ${winHighlight} text-white font-heading font-black text-sm md:text-base shadow-[0_2px_4px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.2)]`}
+        >
+          {n}
+        </span>
         {chipOverlay(`straight_${n}`)}
       </button>
     );
@@ -87,21 +91,25 @@ export default function RouletteTableGrid({
       >
         {/* Numbers area: 0 column + 3×12 grid + SVG hotspot overlay */}
         <div className="flex gap-1">
-          {/* Zero (spans 3 rows on the left) */}
+          {/* Zero (spans 3 rows on the left) — big vertical "0" oval on a green cell */}
           <button
             onClick={() => !disabled && onPlace("straight_0")}
             data-testid="bet-straight-0"
-            className={`relative aspect-[1/3] w-[38px] md:w-[46px] bg-emerald-600 hover:bg-emerald-500 rounded-lg border border-white/25 text-white font-heading font-black text-xl grid place-items-center transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-2px_0_rgba(0,0,0,0.35)] ${disabled ? "pointer-events-none" : ""} ${
-              resultNumber === 0 ? "ring-2 ring-yellow-300" : ""
-            }`}
+            className={`relative aspect-[1/3] w-[38px] md:w-[46px] bg-emerald-800/40 border border-white/70 grid place-items-center transition-all hover:bg-emerald-700/50 ${disabled ? "pointer-events-none" : ""}`}
           >
-            0
+            <span
+              className={`inline-flex items-center justify-center w-[70%] aspect-[1/2] rounded-full bg-emerald-600 text-white font-heading font-black text-xl shadow-[0_2px_4px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.2)] ${
+                resultNumber === 0 ? "ring-2 ring-yellow-300" : ""
+              }`}
+            >
+              0
+            </span>
             {chipOverlay("straight_0")}
           </button>
 
           {/* 3×12 grid with hotspot SVG overlay */}
           <div className="relative flex-1">
-            <div className="grid grid-cols-12 gap-1.5">
+            <div className="grid grid-cols-12 gap-0">
               {TABLE_GRID.flat().map((n) => numCell(n))}
             </div>
 
@@ -251,8 +259,22 @@ export default function RouletteTableGrid({
           <div className="flex-1 grid grid-cols-6 gap-1">
             {outsideBtn("low", "1–18")}
             {outsideBtn("even", "EVEN")}
-            {outsideBtn("red", "RED", "!bg-red-600/40 hover:!bg-red-500/50")}
-            {outsideBtn("black", "BLACK", "!bg-black/60 hover:!bg-black/80")}
+            <button
+              onClick={() => !disabled && onPlace("red")}
+              data-testid="bet-red"
+              className={`relative py-3 md:py-4 border border-white/25 grid place-items-center text-white font-heading font-bold text-xs md:text-sm bg-emerald-800/40 hover:bg-emerald-700/50 transition-all ${disabled ? "pointer-events-none" : ""}`}
+            >
+              <span className="inline-block w-6 h-6 md:w-7 md:h-7 bg-red-600 rotate-45 border border-white/30 shadow-[0_2px_3px_rgba(0,0,0,0.4)]"></span>
+              {chipOverlay("red")}
+            </button>
+            <button
+              onClick={() => !disabled && onPlace("black")}
+              data-testid="bet-black"
+              className={`relative py-3 md:py-4 border border-white/25 grid place-items-center text-white font-heading font-bold text-xs md:text-sm bg-emerald-800/40 hover:bg-emerald-700/50 transition-all ${disabled ? "pointer-events-none" : ""}`}
+            >
+              <span className="inline-block w-6 h-6 md:w-7 md:h-7 bg-neutral-900 rotate-45 border border-white/30 shadow-[0_2px_3px_rgba(0,0,0,0.4)]"></span>
+              {chipOverlay("black")}
+            </button>
             {outsideBtn("odd", "ODD")}
             {outsideBtn("high", "19–36")}
           </div>
