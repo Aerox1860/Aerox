@@ -160,6 +160,7 @@ export default function RouletteGame() {
           <RouletteWheel
             resultNumber={phase === "betting" ? null : state?.result_number}
             spinning={phase === "spinning"}
+            lastResultNumber={state?.history?.[0]?.number ?? null}
           />
           <div className="mt-2 text-center">
             <div className="text-[10px] uppercase tracking-wider text-slate-400">Round Stake</div>

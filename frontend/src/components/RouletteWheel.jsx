@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { WHEEL_ORDER, colorOf } from "@/lib/roulette";
 
@@ -5,10 +6,12 @@ import { WHEEL_ORDER, colorOf } from "@/lib/roulette";
  * Wooden-look European roulette wheel with a ball that lands on the winning number.
  *
  * Props:
- *  - resultNumber: number | null   -> the winning number when known (spinning/result phases)
- *  - spinning: boolean             -> when true, wheel + ball are actively spinning to result
+ *  - resultNumber: number | null       -> current spin's winning number (during spinning/result phases)
+ *  - spinning: boolean                 -> when true, wheel + ball actively spinning to result
+ *  - lastResultNumber: number | null   -> previous round's result — used to hold wheel position
+ *                                          between rounds so the next spin starts from there
  */
-export default function RouletteWheel({ resultNumber, spinning }) {
+export default function RouletteWheel({ resultNumber, spinning, lastResultNumber = null }) {
   const N = WHEEL_ORDER.length; // 37
   const segAngle = 360 / N;
   const R = 140;      // outer radius
@@ -16,13 +19,33 @@ export default function RouletteWheel({ resultNumber, spinning }) {
   const CX = 160;
   const CY = 160;
 
-  // Ball final angle: place at center of the winning segment.
-  // Wheel rotates during spin; ball is drawn at absolute position (angle in "world" space).
-  // We rotate the wheel so the winning segment stops under the ball at 12 o'clock (angle 0).
-  const winIdx = resultNumber == null ? 0 : WHEEL_ORDER.indexOf(resultNumber);
-  const wheelTargetRotation = spinning || resultNumber != null
-    ? 360 * 6 - winIdx * segAngle - segAngle / 2
-    : 0;
+  // Landing rotation (degrees) that places number n directly under the top pointer.
+  const landingAngleFor = (n) =>
+    n == null ? 0 : -WHEEL_ORDER.indexOf(n) * segAngle - segAngle / 2;
+
+  // Persistent wheel + ball rotations. We increment them (never reset) so
+  // successive spins chain smoothly and idle rounds hold the previous result.
+  const [wheelRot, setWheelRot] = useState(() => landingAngleFor(lastResultNumber));
+  const [ballRot, setBallRot] = useState(0);
+  const prevSpinRef = useRef(false);
+
+  // When spinning transitions false -> true with a known resultNumber, kick off a new spin
+  // whose landing angle exactly matches the winning number (>= 6 full turns + settle delta).
+  useEffect(() => {
+    if (spinning && !prevSpinRef.current && resultNumber != null) {
+      setWheelRot((prev) => {
+        const targetAngle = landingAngleFor(resultNumber);
+        const currentMod = ((prev % 360) + 360) % 360;
+        const targetMod = ((targetAngle % 360) + 360) % 360;
+        let delta = targetMod - currentMod;
+        if (delta <= 0) delta += 360; // always keep going forward
+        return prev + 360 * 6 + delta; // 6 full turns + settle
+      });
+      setBallRot((prev) => prev - 720); // 2 extra CCW turns for the ball
+    }
+    prevSpinRef.current = spinning;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spinning, resultNumber]);
 
   return (
     <div className="relative w-[320px] h-[320px] mx-auto select-none" data-testid="roulette-wheel">
@@ -43,8 +66,8 @@ export default function RouletteWheel({ resultNumber, spinning }) {
         height={320}
         viewBox="0 0 320 320"
         className="absolute inset-0"
-        initial={{ rotate: 0 }}
-        animate={{ rotate: wheelTargetRotation }}
+        initial={{ rotate: wheelRot }}
+        animate={{ rotate: wheelRot }}
         transition={{
           duration: spinning ? 9.5 : 0.001,
           ease: spinning ? [0.15, 0.7, 0.15, 1] : "linear",
@@ -111,8 +134,8 @@ export default function RouletteWheel({ resultNumber, spinning }) {
       <motion.div
         className="absolute"
         style={{ top: 0, left: 0, width: 320, height: 320, transformOrigin: "160px 160px" }}
-        initial={{ rotate: 0 }}
-        animate={{ rotate: spinning ? -720 : 0 }}
+        initial={{ rotate: ballRot }}
+        animate={{ rotate: ballRot }}
         transition={{ duration: spinning ? 9.5 : 0.001, ease: [0.15, 0.7, 0.15, 1] }}
       >
         <div
@@ -140,7 +163,7 @@ export default function RouletteWheel({ resultNumber, spinning }) {
         }}
       />
 
-      {/* Result flash */}
+      {/* Small result badge in the hub (does not cover the wheel — user can see the ball landed) */}
       <AnimatePresence>
         {resultNumber != null && !spinning && (
           <motion.div
@@ -150,14 +173,14 @@ export default function RouletteWheel({ resultNumber, spinning }) {
             className="absolute inset-0 flex items-center justify-center pointer-events-none"
           >
             <div
-              className={`font-heading font-black text-5xl px-4 py-2 rounded-xl border-2 ${
+              className={`font-heading font-black text-xl w-14 h-14 rounded-full grid place-items-center text-white border-2 ${
                 colorOf(resultNumber) === "green"
-                  ? "bg-green-600 border-green-300 text-white"
+                  ? "bg-green-600 border-green-300"
                   : colorOf(resultNumber) === "red"
-                  ? "bg-red-600 border-red-300 text-white"
-                  : "bg-black border-white/60 text-white"
+                  ? "bg-red-600 border-red-300"
+                  : "bg-black border-white/60"
               }`}
-              style={{ boxShadow: "0 0 30px rgba(0,0,0,0.7)" }}
+              style={{ boxShadow: "0 0 20px rgba(0,0,0,0.7)" }}
             >
               {resultNumber}
             </div>
