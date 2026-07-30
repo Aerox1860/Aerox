@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { WHEEL_ORDER, colorOf } from "@/lib/roulette";
 
@@ -25,38 +25,26 @@ function RouletteWheel({ resultNumber, spinning, lastResultNumber = null }) {
   const landingAngleFor = (n) =>
     n == null ? 0 : -WHEEL_ORDER.indexOf(n) * segAngle;
 
-  // Persistent wheel + ball rotations. Kept mounted across rounds so state accumulates smoothly.
-  const [wheelRot, setWheelRot] = useState(() => landingAngleFor(lastResultNumber));
-  const [ballRot, setBallRot] = useState(0);
-  const lastAnimatedRoundRef = useRef(null); // tracks resultNumber we already animated to
-
-  // Trigger a new spin whenever the current-round resultNumber becomes known and
-  // is different from the one we last animated to. Firing on resultNumber (not spinning)
-  // is safer because it survives phase flicker / polling gaps.
-  useEffect(() => {
-    if (resultNumber == null) return;
-    if (lastAnimatedRoundRef.current === resultNumber) return;
-    if (!spinning) return; // only animate during spin phase
-    lastAnimatedRoundRef.current = resultNumber;
-    setWheelRot((prev) => {
-      const targetAngle = landingAngleFor(resultNumber);
-      const currentMod = ((prev % 360) + 360) % 360;
-      const targetMod = ((targetAngle % 360) + 360) % 360;
-      let delta = targetMod - currentMod;
-      if (delta <= 0) delta += 360;
-      return prev + 360 * 6 + delta;
-    });
-    setBallRot((prev) => prev - 720);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spinning, resultNumber]);
-
-  // When we enter a fresh betting phase (resultNumber null), reset the "already animated" marker
-  // so the NEXT spinning phase will trigger a new animation.
-  useEffect(() => {
-    if (resultNumber == null) {
-      lastAnimatedRoundRef.current = null;
-    }
-  }, [resultNumber]);
+  // Animation config: we use a stable initial rotation (angle for lastResultNumber)
+  // and animate to the exact landing angle for the current resultNumber. Framer motion
+  // interpolates from `initial` to `animate`.
+  //
+  // Instead of accumulating wheelRot forever (which breaks after several rounds if any
+  // state gets out of sync), we compute a fresh, DETERMINISTIC target angle each round:
+  //     • rest position for round N     = landingAngleFor(resultNumber_N)
+  //     • spin starting position         = landingAngleFor(lastResultNumber) - 360*6
+  //     (6 full CCW turns visually so the wheel spins forwards to landing)
+  //
+  // A key change per round forces framer-motion to re-mount the animated <motion.svg>,
+  // guaranteeing a clean tween that starts at the previous result's angle and finishes
+  // exactly at the current result's angle. No drift, no accumulation bugs.
+  const currentLanding = landingAngleFor(resultNumber);
+  const spinFromAngle = landingAngleFor(lastResultNumber) - 360 * 6;
+  const spinToAngle = currentLanding;
+  // When idle (no current result), we hold the wheel at the last result's rest angle.
+  const idleAngle = landingAngleFor(lastResultNumber);
+  const wheelAnimKey = spinning ? `spin-${resultNumber}` : `idle-${lastResultNumber}`;
+  const ballAnimKey = spinning ? `ball-spin-${resultNumber}` : `ball-idle-${lastResultNumber}`;
 
   return (
     <div
@@ -75,15 +63,17 @@ function RouletteWheel({ resultNumber, spinning, lastResultNumber = null }) {
         }}
       />
 
-      {/* Rotating wheel with numbered segments */}
+      {/* Rotating wheel with numbered segments — key changes per phase/result to
+          guarantee a fresh, deterministic animation each round (no state drift). */}
       <motion.svg
+        key={wheelAnimKey}
         width={320}
         height={320}
         viewBox="0 0 320 320"
         className="absolute inset-0"
         style={{ willChange: "transform", backfaceVisibility: "hidden" }}
-        initial={{ rotate: wheelRot }}
-        animate={{ rotate: wheelRot }}
+        initial={{ rotate: spinning ? spinFromAngle : idleAngle }}
+        animate={{ rotate: spinning ? spinToAngle : idleAngle }}
         transition={{
           duration: spinning ? 7.5 : 0.001,
           ease: spinning ? [0.15, 0.7, 0.15, 1] : "linear",
@@ -146,8 +136,10 @@ function RouletteWheel({ resultNumber, spinning, lastResultNumber = null }) {
         }}
       />
 
-      {/* Ball — sits at absolute top; wheel rotates underneath. */}
+      {/* Ball — sits at absolute top; wheel rotates underneath. Ball itself just does
+          two decorative CCW turns per spin and rests at 12 o'clock. */}
       <motion.div
+        key={ballAnimKey}
         className="absolute"
         style={{
           top: 0,
@@ -158,8 +150,8 @@ function RouletteWheel({ resultNumber, spinning, lastResultNumber = null }) {
           willChange: "transform",
           backfaceVisibility: "hidden",
         }}
-        initial={{ rotate: ballRot }}
-        animate={{ rotate: ballRot }}
+        initial={{ rotate: spinning ? 720 : 0 }}
+        animate={{ rotate: 0 }}
         transition={{ duration: spinning ? 7.5 : 0.001, ease: [0.15, 0.7, 0.15, 1] }}
       >
         <div
