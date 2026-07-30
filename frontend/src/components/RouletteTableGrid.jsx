@@ -55,10 +55,10 @@ export default function RouletteTableGrid({ bets = {}, onPlace, disabled = false
         onClick={() => !disabled && onPlace(`straight_${n}`)}
         disabled={disabled}
         data-testid={`bet-straight-${n}`}
-        className={`relative aspect-[3/2] ${bg} ${winHighlight} border border-white/15 text-white font-heading font-bold text-sm md:text-base flex flex-col items-center justify-center transition-all disabled:opacity-70 disabled:cursor-not-allowed`}
+        className={`relative aspect-[3/2] ${bg} ${winHighlight} border border-white/15 text-white font-heading font-bold text-sm md:text-base grid place-items-center transition-all disabled:opacity-70 disabled:cursor-not-allowed`}
       >
-        <span>{n}</span>
-        {belowChip(`straight_${n}`)}
+        {n}
+        {centerChip(`straight_${n}`)}
       </button>
     );
   };
@@ -93,12 +93,12 @@ export default function RouletteTableGrid({ bets = {}, onPlace, disabled = false
             onClick={() => !disabled && onPlace("straight_0")}
             disabled={disabled}
             data-testid="bet-straight-0"
-            className={`relative aspect-[1/3] w-[38px] md:w-[46px] bg-emerald-600 hover:bg-emerald-500 border border-white/15 text-white font-heading font-black text-xl flex flex-col items-center justify-center transition-all disabled:opacity-70 disabled:cursor-not-allowed ${
+            className={`relative aspect-[1/3] w-[38px] md:w-[46px] bg-emerald-600 hover:bg-emerald-500 border border-white/15 text-white font-heading font-black text-xl grid place-items-center transition-all disabled:opacity-70 disabled:cursor-not-allowed ${
               resultNumber === 0 ? "ring-2 ring-yellow-300" : ""
             }`}
           >
-            <span>0</span>
-            {belowChip("straight_0")}
+            0
+            {centerChip("straight_0")}
           </button>
 
           {/* 3×12 grid */}
