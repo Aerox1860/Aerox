@@ -253,62 +253,77 @@ export default function RouletteGame() {
       {/* Live winners ticker (last round) */}
       <WinnersTicker winners={state?.winners || []} />
 
-      {/* Wheel + betting stake. Layout swaps between compact (betting) and focused (spin/result). */}
-      <div className={`grid gap-4 items-start ${isBetting ? "md:grid-cols-[auto_1fr]" : "grid-cols-1"}`}>
-        <div className={`card-surface p-3 md:p-4 flex flex-col items-center gap-2 ${!isBetting ? "md:mx-auto" : ""}`}>
-          <RouletteWheel
-            resultNumber={phase === "betting" ? null : state?.result_number}
-            spinning={phase === "spinning"}
-            lastResultNumber={state?.history?.[0]?.number ?? null}
-          />
-          <div className="mt-2 text-center">
-            <div className="text-[10px] uppercase tracking-wider text-slate-400">Round Stake</div>
-            <div className="font-mono font-bold text-lg" data-testid="round-stake">₹{totalStake.toFixed(2)}</div>
-          </div>
-          {isBetting && (
-            <button
-              onClick={undoLastBet}
-              disabled={myBets.length === 0}
-              data-testid="undo-bet-btn-wheel"
-              title={myBets.length === 0 ? "No bets to undo" : `Undo last bet — ${myBets.length} in stack`}
-              className="mt-1 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-yellow-400 text-black font-heading font-bold text-xs border-2 border-yellow-200 shadow-[0_0_20px_rgba(250,204,21,0.45)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:bg-black/40 disabled:text-slate-400 disabled:border-white/15"
-            >
-              <Undo2 className="w-4 h-4" />
-              <span>Undo last bet</span>
-              {myBets.length > 0 && (
-                <span className="min-w-[22px] h-5 px-1.5 rounded-full bg-black text-yellow-300 text-[10px] font-black grid place-items-center border border-yellow-200">
-                  {myBets.length}
-                </span>
-              )}
-            </button>
-          )}
-          {!isBetting && (
-            <div className="text-[10px] uppercase tracking-widest text-slate-400 mt-1" data-testid="minimized-note">
-              Bets locked — table hidden. Reopens next round.
+      {/* SEQUENTIAL layout: betting-only when placing bets, wheel-only when spinning/showing result.
+          Never side-by-side — chosen for mobile-first tap-friendliness. */}
+      <AnimatePresence mode="wait" initial={false}>
+        {!isBetting && (
+          <motion.div
+            key="wheel-only"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.25 }}
+            className="card-surface p-3 md:p-4 flex flex-col items-center gap-2 mx-auto max-w-md"
+            data-testid="wheel-only-view"
+          >
+            <RouletteWheel
+              resultNumber={state?.result_number}
+              spinning={phase === "spinning"}
+              lastResultNumber={state?.history?.[0]?.number ?? null}
+            />
+            <div className="mt-2 text-center">
+              <div className="text-[10px] uppercase tracking-wider text-slate-400">Round Stake</div>
+              <div className="font-mono font-bold text-lg" data-testid="round-stake">₹{totalStake.toFixed(2)}</div>
             </div>
-          )}
-        </div>
+            <div className="text-[10px] uppercase tracking-widest text-slate-400 mt-1" data-testid="minimized-note">
+              Bets locked — betting board reopens next round.
+            </div>
+          </motion.div>
+        )}
 
-        {/* Betting UI — auto-minimized when bets are locked, expanded when betting is open */}
-        <AnimatePresence initial={false}>
-          {isBetting && (
-            <motion.div
-              key="betting-ui"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              className="space-y-3 overflow-hidden"
-              data-testid="betting-ui-wrap"
-            >
-              <RouletteTableGrid
-                bets={bets}
-                onPlace={placeBet}
-                disabled={!isBetting}
-                resultNumber={phase === "result" ? state?.result_number : null}
-              />
+        {isBetting && (
+          <motion.div
+            key="betting-only"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-3"
+            data-testid="betting-ui-wrap"
+          >
+            <RouletteTableGrid
+              bets={bets}
+              onPlace={placeBet}
+              disabled={!isBetting}
+              resultNumber={null}
+            />
 
-              {/* Bet mode selector removed — user clicks between cells directly for splits/corners. */}
+            {/* Round stake + Undo — surfaces the wheel-side stats while wheel is hidden */}
+            <div className="card-surface p-3 flex items-center justify-between gap-2 flex-wrap" data-testid="betting-status-bar">
+              <div className="flex items-center gap-3">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">
+                  Round Stake
+                  <div className="font-mono font-bold text-base text-white" data-testid="round-stake">₹{totalStake.toFixed(2)}</div>
+                </div>
+              </div>
+              <button
+                onClick={undoLastBet}
+                disabled={myBets.length === 0}
+                data-testid="undo-bet-btn-wheel"
+                title={myBets.length === 0 ? "No bets to undo" : `Undo last bet — ${myBets.length} in stack`}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-yellow-400 text-black font-heading font-bold text-xs border-2 border-yellow-200 shadow-[0_0_20px_rgba(250,204,21,0.45)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:bg-black/40 disabled:text-slate-400 disabled:border-white/15"
+              >
+                <Undo2 className="w-4 h-4" />
+                <span>Undo last bet</span>
+                {myBets.length > 0 && (
+                  <span className="min-w-[22px] h-5 px-1.5 rounded-full bg-black text-yellow-300 text-[10px] font-black grid place-items-center border border-yellow-200">
+                    {myBets.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Bet mode selector removed — user clicks between cells directly for splits/corners. */}
 
               {/* Chip selector + Undo */}
               <div className="card-surface p-3 md:p-4">
@@ -366,7 +381,6 @@ export default function RouletteGame() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
 
       {/* Rules modal */}
       <RulesModal open={showRules} onClose={() => setShowRules(false)} />

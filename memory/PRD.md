@@ -40,6 +40,13 @@ AeroX Crash is a real-time aviation "crash" style multiplayer game where players
 - Roulette lobby (`/games/roulette`) with 7 live tables: Hindi, Lightning, American, Mega Fire Blaze, Speed Sic Bo, Bucharest Quantum, Arabic
 - **Playable European Roulette engine** (2026-07-30) — `/games/roulette/:tableId` opens a real game with wooden wheel (exact 37-number European sequence), 20s betting → 8s spin → 4s result loop, ball animates to winning number, popup shows result. Bet types: straight (35:1), red/black/even/odd/low/high (1:1), dozens (3:1). Zero rule: only straight-0 wins on zero. Backend engine in `/app/backend/roulette.py` with routes `GET /api/roulette/state`, `POST /api/roulette/bet`, `GET /api/roulette/my-bets`, `GET /api/roulette/history`.
 
+### v1.2 additions (2026-07-30)
+- Roulette split (17:1), corner (8:1), and street 0-1-2 / 1-2-3 (11:1) bet types with on-table hotspots
+- Column bets (2:1) supported in the engine
+- **On-table hotspots between "0" and 1/2/3**: click yellow line for split_0_1, split_0_2, split_0_3; cyan "012" circle for trio 0-1-2; yellow line beneath "1" for street 1-2-3. Labeled fallback buttons remain in the outside row.
+- **Sequential mobile-first roulette layout**: during BETTING phase only the betting board is visible (wheel hidden); during SPINNING / RESULT phase only the wheel is visible (board hidden). Fixes cramped side-by-side layout on phones.
+- Undo Last Bet buttons prominently displayed in both views; game history modal separate from wallet transactions with 24-hour auto-cleanup.
+
 ### Admin portal
 - Sidebar dashboard with live metrics + game controls
 - Users: search, block/unblock, adjust balance
@@ -52,7 +59,7 @@ AeroX Crash is a real-time aviation "crash" style multiplayer game where players
 ## Prioritized Backlog / P0/P1/P2
 
 ### P0 (next)
-- Column bets (2:1) on the Roulette table (currently only dozens outside bets are exposed)
+- Wire "Coming Soon" games (Mines, Dice, Plinko, Wheel of Fortune, Slots, Blackjack, Baccarat) on the `/games` catalog to real playable engines
 - Roulette in-game chat + live-players count
 
 ### P1 (next iterations)
