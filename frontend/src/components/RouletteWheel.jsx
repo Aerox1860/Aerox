@@ -25,29 +25,38 @@ function RouletteWheel({ resultNumber, spinning, lastResultNumber = null }) {
   const landingAngleFor = (n) =>
     n == null ? 0 : -WHEEL_ORDER.indexOf(n) * segAngle;
 
-  // Persistent wheel + ball rotations. We increment them (never reset) so
-  // successive spins chain smoothly and idle rounds hold the previous result.
+  // Persistent wheel + ball rotations. Kept mounted across rounds so state accumulates smoothly.
   const [wheelRot, setWheelRot] = useState(() => landingAngleFor(lastResultNumber));
   const [ballRot, setBallRot] = useState(0);
-  const prevSpinRef = useRef(false);
+  const lastAnimatedRoundRef = useRef(null); // tracks resultNumber we already animated to
 
-  // When spinning transitions false -> true with a known resultNumber, kick off a new spin
-  // whose landing angle exactly matches the winning number (>= 6 full turns + settle delta).
+  // Trigger a new spin whenever the current-round resultNumber becomes known and
+  // is different from the one we last animated to. Firing on resultNumber (not spinning)
+  // is safer because it survives phase flicker / polling gaps.
   useEffect(() => {
-    if (spinning && !prevSpinRef.current && resultNumber != null) {
-      setWheelRot((prev) => {
-        const targetAngle = landingAngleFor(resultNumber);
-        const currentMod = ((prev % 360) + 360) % 360;
-        const targetMod = ((targetAngle % 360) + 360) % 360;
-        let delta = targetMod - currentMod;
-        if (delta <= 0) delta += 360; // always keep going forward
-        return prev + 360 * 6 + delta; // 6 full turns + settle
-      });
-      setBallRot((prev) => prev - 720); // 2 extra CCW turns for the ball
-    }
-    prevSpinRef.current = spinning;
+    if (resultNumber == null) return;
+    if (lastAnimatedRoundRef.current === resultNumber) return;
+    if (!spinning) return; // only animate during spin phase
+    lastAnimatedRoundRef.current = resultNumber;
+    setWheelRot((prev) => {
+      const targetAngle = landingAngleFor(resultNumber);
+      const currentMod = ((prev % 360) + 360) % 360;
+      const targetMod = ((targetAngle % 360) + 360) % 360;
+      let delta = targetMod - currentMod;
+      if (delta <= 0) delta += 360;
+      return prev + 360 * 6 + delta;
+    });
+    setBallRot((prev) => prev - 720);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spinning, resultNumber]);
+
+  // When we enter a fresh betting phase (resultNumber null), reset the "already animated" marker
+  // so the NEXT spinning phase will trigger a new animation.
+  useEffect(() => {
+    if (resultNumber == null) {
+      lastAnimatedRoundRef.current = null;
+    }
+  }, [resultNumber]);
 
   return (
     <div

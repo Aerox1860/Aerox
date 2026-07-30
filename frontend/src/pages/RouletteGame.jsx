@@ -251,73 +251,61 @@ export default function RouletteGame() {
 
       {/* SEQUENTIAL layout: betting-only when placing bets, wheel-only when spinning/showing result.
           Never side-by-side — chosen for mobile-first tap-friendliness. */}
-      {/* STRICT SEQUENTIAL flow (both mobile and desktop):
-           1) Betting phase  → only the betting UI (table + sidebar). Wheel is hidden.
-           2) Spinning phase → only the spinning wheel. Betting UI is hidden.
-           3) Result phase   → only the result wheel. Betting UI is hidden.
-           4) → betting again. */}
-      <AnimatePresence mode="wait" initial={false}>
-        {!isBetting && (
-          <motion.div
-            key="wheel-only"
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.25 }}
-            className="card-surface p-3 md:p-4 flex flex-col items-center gap-2 mx-auto max-w-md"
-            data-testid="wheel-only-view"
-          >
-            <RouletteWheel
-              resultNumber={phase === "betting" ? null : state?.result_number}
-              spinning={phase === "spinning"}
-              lastResultNumber={state?.history?.[0]?.number ?? null}
-            />
-            <div className="mt-2 text-center">
-              <div className="text-[10px] uppercase tracking-wider text-slate-400">Round Stake</div>
-              <div className="font-mono font-bold text-lg" data-testid="round-stake-wheel">
-                ₹{totalStake.toFixed(2)}
-              </div>
+      {/* Sequential flow — but wheel + betting UI are BOTH kept mounted at all times
+           (only visibility toggles). This preserves the wheel's accumulated rotation
+           state across rounds so the ball → result mapping never drifts. */}
+      <div className="relative">
+        {/* WHEEL — visible only when !isBetting */}
+        <div
+          className={`${isBetting ? "hidden" : "block"} card-surface p-3 md:p-4 flex-col items-center gap-2 mx-auto max-w-md ${
+            isBetting ? "" : "flex"
+          }`}
+          data-testid="wheel-only-view"
+        >
+          <RouletteWheel
+            resultNumber={phase === "betting" ? null : state?.result_number}
+            spinning={phase === "spinning"}
+            lastResultNumber={state?.history?.[0]?.number ?? null}
+          />
+          <div className="mt-2 text-center">
+            <div className="text-[10px] uppercase tracking-wider text-slate-400">Round Stake</div>
+            <div className="font-mono font-bold text-lg" data-testid="round-stake-wheel">
+              ₹{totalStake.toFixed(2)}
             </div>
-            <div className="text-[10px] uppercase tracking-widest text-slate-400 mt-1" data-testid="minimized-note">
-              Bets locked — betting board reopens next round.
-            </div>
-          </motion.div>
-        )}
+          </div>
+          <div className="text-[10px] uppercase tracking-widest text-slate-400 mt-1" data-testid="minimized-note">
+            Bets locked — betting board reopens next round.
+          </div>
+        </div>
 
-        {isBetting && (
-          <motion.div
-            key="betting-only"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25 }}
-            className="space-y-3"
-            data-testid="betting-ui-wrap"
-          >
-            <div className="flex gap-2 items-start justify-center" data-testid="table-sidebar-wrap">
-              <div className="shrink-0">
-                <RouletteTableGrid
-                  bets={bets}
-                  onPlace={placeBet}
-                  disabled={!isBetting}
-                  resultNumber={null}
-                />
-              </div>
-              <BetSidebar
+        {/* BETTING — visible only when isBetting */}
+        <div
+          className={`${isBetting ? "block" : "hidden"} space-y-3`}
+          data-testid="betting-ui-wrap"
+        >
+          <div className="flex gap-2 items-start justify-center" data-testid="table-sidebar-wrap">
+            <div className="shrink-0">
+              <RouletteTableGrid
                 bets={bets}
-                chip={chip}
-                setChip={setChip}
                 onPlace={placeBet}
-                onUndo={undoLastBet}
-                undoCount={myBets.length}
-                totalStake={totalStake}
                 disabled={!isBetting}
+                resultNumber={null}
               />
             </div>
-            <MyBetsSummary bets={myBets} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <BetSidebar
+              bets={bets}
+              chip={chip}
+              setChip={setChip}
+              onPlace={placeBet}
+              onUndo={undoLastBet}
+              undoCount={myBets.length}
+              totalStake={totalStake}
+              disabled={!isBetting}
+            />
+          </div>
+          <MyBetsSummary bets={myBets} />
+        </div>
+      </div>
 
       {/* Rules modal */}
       <RulesModal open={showRules} onClose={() => setShowRules(false)} />
