@@ -28,7 +28,7 @@ import ChangePassword from "@/pages/ChangePassword";
 import Support from "@/pages/Support";
 import Games from "@/pages/Games";
 import RouletteLobby from "@/pages/RouletteLobby";
-import RouletteTable from "@/pages/RouletteTable";
+import RouletteGame from "@/pages/RouletteGame";
 
 // Host-based routing:
 // - Hosts containing "admin" (e.g. admin.gowin365x.com or gowin365xadmin.com) → admin-only app
@@ -97,7 +97,7 @@ function AppRoutes() {
           <Route index element={<Lobby />} />
           <Route path="games" element={<Games />} />
           <Route path="games/roulette" element={<RouletteLobby />} />
-          <Route path="games/roulette/:tableId" element={<RouletteTable />} />
+          <Route path="games/roulette/:tableId" element={<RouletteGame />} />
           <Route path="game" element={<Game />} />
           <Route path="wallet" element={<Wallet />} />
           <Route path="deposit" element={<Deposit />} />
@@ -124,7 +124,7 @@ function AppRoutes() {
         <Route index element={<Lobby />} />
         <Route path="games" element={<Games />} />
         <Route path="games/roulette" element={<RouletteLobby />} />
-        <Route path="games/roulette/:tableId" element={<RouletteTable />} />
+        <Route path="games/roulette/:tableId" element={<RouletteGame />} />
         <Route path="game" element={<Game />} />
         <Route path="wallet" element={<Wallet />} />
         <Route path="deposit" element={<Deposit />} />
