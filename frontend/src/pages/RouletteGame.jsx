@@ -101,13 +101,22 @@ export default function RouletteGame() {
       toast.error("Insufficient balance");
       return;
     }
-    // Do NOT set `placing` — allow spam-clicking multiple bets in quick succession.
-    // Optimistically update local chip stack; server request runs in background.
+    // Optimistic local update: bump chip stack AND add to myBets for instant undo-count feedback.
     setBets((prev) => ({ ...prev, [betKey]: (prev[betKey] || 0) + chip }));
     try {
-      await api.post("/roulette/bet", { bet_type: betKey, amount: chip });
+      const { data } = await api.post("/roulette/bet", { bet_type: betKey, amount: chip });
+      // Append to myBets so the Undo counter (which reads myBets.length) reflects it immediately.
+      setMyBets((prev) => [
+        ...prev,
+        {
+          id: data.bet_id,
+          bet_type: betKey,
+          amount: chip,
+          created_at: new Date().toISOString(),
+          status: "pending",
+        },
+      ]);
       refresh?.();
-      loadMyBets();
     } catch (e) {
       // Rollback optimistic stack on failure
       setBets((prev) => {
@@ -168,22 +177,25 @@ export default function RouletteGame() {
       toast.info("No bets to undo");
       return;
     }
-    // Newest bet = highest created_at
+    // Newest bet = highest created_at (works for both straight & outside bets, all types)
     const sorted = [...myBets].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const last = sorted[0];
+    // Optimistically remove from local myBets + chip stack
+    setMyBets((prev) => prev.filter((b) => b.id !== last.id));
+    setBets((prev) => {
+      const next = { ...prev };
+      const remaining = (next[last.bet_type] || 0) - last.amount;
+      if (remaining > 0) next[last.bet_type] = remaining;
+      else delete next[last.bet_type];
+      return next;
+    });
     try {
       await api.delete(`/roulette/bet/${last.id}`);
-      // Decrement local chip stack for this bet_type by the exact amount
-      setBets((prev) => {
-        const next = { ...prev };
-        const remaining = (next[last.bet_type] || 0) - last.amount;
-        if (remaining > 0) next[last.bet_type] = remaining;
-        else delete next[last.bet_type];
-        return next;
-      });
       refresh?.();
-      loadMyBets();
     } catch (e) {
+      // Rollback on failure — put the bet back
+      setMyBets((prev) => [...prev, last]);
+      setBets((prev) => ({ ...prev, [last.bet_type]: (prev[last.bet_type] || 0) + last.amount }));
       toast.error(formatApiError(e));
     }
   };
@@ -193,17 +205,22 @@ export default function RouletteGame() {
     if (!isBetting) return;
     const matching = myBets.filter((b) => b.bet_type === betKey);
     if (matching.length === 0) return;
+    // Optimistic remove
+    setMyBets((prev) => prev.filter((b) => b.bet_type !== betKey));
+    setBets((prev) => {
+      const next = { ...prev };
+      delete next[betKey];
+      return next;
+    });
     try {
       await Promise.all(matching.map((m) => api.delete(`/roulette/bet/${m.id}`)));
-      setBets((prev) => {
-        const next = { ...prev };
-        delete next[betKey];
-        return next;
-      });
       refresh?.();
-      loadMyBets();
       toast.success(`Removed ${matching.length > 1 ? matching.length + " bets" : "bet"}`);
     } catch (e) {
+      // Rollback: put matching bets back
+      setMyBets((prev) => [...prev, ...matching]);
+      const total = matching.reduce((s, m) => s + m.amount, 0);
+      setBets((prev) => ({ ...prev, [betKey]: (prev[betKey] || 0) + total }));
       toast.error(formatApiError(e));
     }
   };
