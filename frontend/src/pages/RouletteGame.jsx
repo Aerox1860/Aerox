@@ -87,8 +87,8 @@ export default function RouletteGame() {
       });
       setShowResult({ number: num, netProfit: net, hasBets: roundBets.length > 0 });
       refresh?.();
-      // auto-close after 2.5s (result phase is 3s)
-      setTimeout(() => setShowResult(null), 2500);
+      // auto-close after 1s (result phase is 1s)
+      setTimeout(() => setShowResult(null), 1000);
     }
   }, [state, refresh]);
 
