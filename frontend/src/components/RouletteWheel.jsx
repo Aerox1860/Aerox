@@ -76,7 +76,7 @@ function RouletteWheel({ resultNumber, spinning, lastResultNumber = null }) {
         initial={{ rotate: wheelRot }}
         animate={{ rotate: wheelRot }}
         transition={{
-          duration: spinning ? 9.5 : 0.001,
+          duration: spinning ? 7.5 : 0.001,
           ease: spinning ? [0.15, 0.7, 0.15, 1] : "linear",
         }}
       >
@@ -151,7 +151,7 @@ function RouletteWheel({ resultNumber, spinning, lastResultNumber = null }) {
         }}
         initial={{ rotate: ballRot }}
         animate={{ rotate: ballRot }}
-        transition={{ duration: spinning ? 9.5 : 0.001, ease: [0.15, 0.7, 0.15, 1] }}
+        transition={{ duration: spinning ? 7.5 : 0.001, ease: [0.15, 0.7, 0.15, 1] }}
       >
         <div
           className="absolute rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]"

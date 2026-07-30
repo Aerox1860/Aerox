@@ -216,7 +216,7 @@ export default function RouletteTableGrid({
           })}
         </div>
 
-        {/* Dozens row (3 buttons, 3:1) — spatially below the grid, spanning columns */}
+        {/* Dozens row (3 buttons, 2:1) — spatially below the grid, spanning columns */}
         <div className="grid grid-cols-3 border-t-2 border-yellow-500/30">
           {[
             { key: "dozen_1", label: "1st 12" },
@@ -233,7 +233,7 @@ export default function RouletteTableGrid({
               }`}
             >
               {label}
-              <div className="text-[8px] text-yellow-300/80">(3:1)</div>
+              <div className="text-[8px] text-yellow-300/80">(2:1)</div>
               <ChipBadge betKey={key} />
             </button>
           ))}

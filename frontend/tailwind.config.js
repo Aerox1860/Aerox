@@ -70,11 +70,16 @@ module.exports = {
           to: {
             height: '0'
           }
+        },
+        'roulette-marquee': {
+          from: { transform: 'translateX(0%)' },
+          to:   { transform: 'translateX(-50%)' },
         }
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out'
+        'accordion-up': 'accordion-up 0.2s ease-out',
+        'roulette-marquee': 'roulette-marquee 35s linear infinite'
       }
     }
   },

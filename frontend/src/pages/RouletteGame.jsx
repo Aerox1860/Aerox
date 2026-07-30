@@ -569,9 +569,9 @@ function BetSidebar({ bets, chip, setChip, onPlace, onUndo, undoCount, totalStak
 
       {/* Dozens — full-width */}
       <div className="flex flex-col gap-1.5">
-        <SideBet betKey="dozen_1" label="1st 12" sub="(3:1)" testKey="dozen_1-side" />
-        <SideBet betKey="dozen_2" label="2nd 12" sub="(3:1)" testKey="dozen_2-side" />
-        <SideBet betKey="dozen_3" label="3rd 12" sub="(3:1)" testKey="dozen_3-side" />
+        <SideBet betKey="dozen_1" label="1st 12" sub="(2:1)" testKey="dozen_1-side" />
+        <SideBet betKey="dozen_2" label="2nd 12" sub="(2:1)" testKey="dozen_2-side" />
+        <SideBet betKey="dozen_3" label="3rd 12" sub="(2:1)" testKey="dozen_3-side" />
       </div>
     </div>
   );
@@ -680,7 +680,8 @@ function RulesModal({ open, onClose }) {
     { name: "Street (3 numbers)",      example: "Any row: 1·2·3 … 34·35·36 (+ trios 0·1·2 / 0·2·3)", payout: "11 : 1", ret: "₹50 → ₹600 total" },
     { name: "Corner (4 numbers)",      example: "Square, e.g. 1·2·4·5",        payout: "8 : 1",  ret: "₹50 → ₹450 total" },
     { name: "Six-Line (6 numbers)",    example: "Two adjacent rows, e.g. 1–6", payout: "5 : 1",  ret: "₹50 → ₹300 total" },
-    { name: "Dozen (12 numbers)",      example: "1st 12 / 2nd 12 / 3rd 12",    payout: "3 : 1",  ret: "₹50 → ₹200 total" },
+    { name: "Dozen (12 numbers)",      example: "1st 12 / 2nd 12 / 3rd 12",    payout: "2 : 1",  ret: "₹50 → ₹150 total" },
+    { name: "Column (12 numbers)",     example: "1st / 2nd / 3rd column",      payout: "2 : 1",  ret: "₹50 → ₹150 total" },
     { name: "Red / Black",             example: "Colour of winning number",    payout: "1 : 1",  ret: "₹50 → ₹100 total" },
     { name: "Even / Odd",              example: "Parity (0 loses)",            payout: "1 : 1",  ret: "₹50 → ₹100 total" },
     { name: "Low / High",              example: "1–18 or 19–36 (0 loses)",     payout: "1 : 1",  ret: "₹50 → ₹100 total" },
@@ -841,30 +842,37 @@ function GameHistoryModal({ open, onClose, rows = [], loading }) {
 
 function WinnersTicker({ winners = [] }) {
   if (winners.length === 0) return null;
+  // Repeat the winners list to fill the marquee width so the scroll never has an empty patch.
+  const looped = winners.length < 6 ? [...winners, ...winners, ...winners] : winners;
   return (
-    <div className="card-surface p-3" data-testid="winners-ticker">
-      <div className="flex items-center gap-1 mb-2">
+    <div className="card-surface p-2 overflow-hidden" data-testid="winners-ticker">
+      <div className="flex items-center gap-1 mb-1.5 px-1">
         <Trophy className="w-3.5 h-3.5 text-yellow-300" />
         <div className="text-[10px] uppercase tracking-wider text-yellow-300 font-bold">
           Last Round Winners
         </div>
       </div>
-      <div className="flex gap-2 overflow-x-auto">
-        {winners.slice(0, 8).map((w, i) => (
-          <div
-            key={`${w.round_id}-${w.name}-${i}`}
-            data-testid={`winner-item-${i}`}
-            className="shrink-0 flex items-center gap-2 bg-black/40 border border-yellow-400/30 rounded-lg px-3 py-1.5"
-          >
-            <span className="w-2 h-2 rounded-full bg-yellow-300 animate-pulse" />
-            <div>
-              <div className="text-[11px] font-bold text-white truncate max-w-[110px]">{w.name}</div>
-              <div className="text-[10px] text-yellow-200 font-mono font-bold">
-                +₹{Number(w.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+      <div className="relative overflow-hidden">
+        <div
+          className="flex gap-2 whitespace-nowrap w-max animate-roulette-marquee"
+          style={{ animationPlayState: "running" }}
+        >
+          {[...looped, ...looped].map((w, i) => (
+            <div
+              key={`${w.round_id}-${w.name}-${i}`}
+              data-testid={`winner-item-${i}`}
+              className="shrink-0 flex items-center gap-2 bg-black/40 border border-yellow-400/30 rounded-lg px-3 py-1.5"
+            >
+              <span className="w-2 h-2 rounded-full bg-yellow-300 animate-pulse shrink-0" />
+              <div>
+                <div className="text-[11px] font-bold text-white truncate max-w-[130px]">{w.name}</div>
+                <div className="text-[10px] text-yellow-200 font-mono font-bold">
+                  +₹{Number(w.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

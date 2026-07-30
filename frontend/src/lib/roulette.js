@@ -205,10 +205,9 @@ export const PAYOUT_LABEL = {
   odd: "1:1",
   low: "1:1",
   high: "1:1",
-  dozen_1: "3:1",
-  dozen_2: "3:1",
-  dozen_3: "3:1",
-};
+  dozen_1: "2:1",
+  dozen_2: "2:1",
+  dozen_3: "2:1",};
 
 // Profit multiplier (mirror of backend)
 export function profitMultClient(bt) {
@@ -217,7 +216,7 @@ export function profitMultClient(bt) {
   if (bt.startsWith("street_")) return 11;
   if (bt.startsWith("corner_")) return 8;
   if (bt.startsWith("six_line_")) return 5;
-  if (bt.startsWith("dozen_")) return 3;
+  if (bt.startsWith("dozen_")) return 2;
   if (bt.startsWith("column_")) return 2;
   return 1;
 }

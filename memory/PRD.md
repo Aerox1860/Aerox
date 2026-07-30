@@ -40,6 +40,13 @@ AeroX Crash is a real-time aviation "crash" style multiplayer game where players
 - Roulette lobby (`/games/roulette`) with 7 live tables: Hindi, Lightning, American, Mega Fire Blaze, Speed Sic Bo, Bucharest Quantum, Arabic
 - **Playable European Roulette engine** (2026-07-30) — `/games/roulette/:tableId` opens a real game with wooden wheel (exact 37-number European sequence), 20s betting → 8s spin → 4s result loop, ball animates to winning number, popup shows result. Bet types: straight (35:1), red/black/even/odd/low/high (1:1), dozens (3:1). Zero rule: only straight-0 wins on zero. Backend engine in `/app/backend/roulette.py` with routes `GET /api/roulette/state`, `POST /api/roulette/bet`, `GET /api/roulette/my-bets`, `GET /api/roulette/history`.
 
+### v1.7 fixes (2026-07-30 — Payouts + Marquee + Wheel Timing)
+- **Dozens payout corrected 3:1 → 2:1** (both backend + frontend labels updated) to match standard European roulette and the client's requested payout table
+- Payouts now: Straight 35:1, Split 17:1, Street/Trio 11:1, Corner 8:1, Six-Line 5:1, Dozen/Column 2:1, Red/Black/Even/Odd/Low/High 1:1
+- Rules modal updated with Dozen 2:1 and new Column 2:1 row
+- **Winners ticker → scrolling marquee** — auto-scrolls horizontally (Tailwind keyframe `roulette-marquee`, 35s loop). Short lists are looped so the ticker never feels empty
+- **Wheel animation duration reduced 9.5s → 7.5s** so the ball settles cleanly inside the 8s spin phase instead of being cut short at phase transition (should stop ball/result mismatches when this build is redeployed)
+
 ### v1.6 fix (2026-07-30 — Desktop Visibility)
 - Fixed: on desktop, the table + sidebar were hidden during the spin/result phase because of the sequential mobile layout. Now the wheel, table, and sidebar are all shown side-by-side on `md+` screens at all times; buttons are visually disabled while bets are locked.
 - Mobile behaviour unchanged (sequential: only wheel during spin/result, only table during betting).
