@@ -265,6 +265,23 @@ export default function RouletteGame() {
             <div className="text-[10px] uppercase tracking-wider text-slate-400">Round Stake</div>
             <div className="font-mono font-bold text-lg" data-testid="round-stake">₹{totalStake.toFixed(2)}</div>
           </div>
+          {isBetting && (
+            <button
+              onClick={undoLastBet}
+              disabled={myBets.length === 0}
+              data-testid="undo-bet-btn-wheel"
+              title={myBets.length === 0 ? "No bets to undo" : `Undo last bet — ${myBets.length} in stack`}
+              className="mt-1 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-yellow-400 text-black font-heading font-bold text-xs border-2 border-yellow-200 shadow-[0_0_20px_rgba(250,204,21,0.45)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:bg-black/40 disabled:text-slate-400 disabled:border-white/15"
+            >
+              <Undo2 className="w-4 h-4" />
+              <span>Undo last bet</span>
+              {myBets.length > 0 && (
+                <span className="min-w-[22px] h-5 px-1.5 rounded-full bg-black text-yellow-300 text-[10px] font-black grid place-items-center border border-yellow-200">
+                  {myBets.length}
+                </span>
+              )}
+            </button>
+          )}
           {!isBetting && (
             <div className="text-[10px] uppercase tracking-widest text-slate-400 mt-1" data-testid="minimized-note">
               Bets locked — table hidden. Reopens next round.
@@ -305,7 +322,7 @@ export default function RouletteGame() {
 
               {/* Chip selector + Undo */}
               <div className="card-surface p-3 md:p-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-2 gap-2">
                   <div className="text-[10px] uppercase tracking-wider text-slate-400">Chip Size</div>
                   <div className="flex items-center gap-2">
                     <button
@@ -313,9 +330,15 @@ export default function RouletteGame() {
                       disabled={myBets.length === 0}
                       data-testid="undo-bet-btn"
                       title={myBets.length === 0 ? "No bets to undo" : `Undo last bet (${myBets.length} in stack)`}
-                      className="chip !text-yellow-300 hover:!bg-yellow-500/10 !border-yellow-400/40 text-[10px] disabled:opacity-40"
+                      className="relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-yellow-400 text-black font-heading font-bold text-xs border-2 border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.4)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:bg-black/40 disabled:text-slate-300 disabled:border-white/15"
                     >
-                      <Undo2 className="w-3 h-3" /> Undo {myBets.length > 0 ? `(${myBets.length})` : ""}
+                      <Undo2 className="w-4 h-4" />
+                      <span>Undo</span>
+                      {myBets.length > 0 && (
+                        <span className="ml-0.5 min-w-[20px] h-5 px-1.5 rounded-full bg-black text-yellow-300 text-[10px] font-black grid place-items-center border border-yellow-200">
+                          {myBets.length}
+                        </span>
+                      )}
                     </button>
                     <button
                       onClick={clearLocalOnly}
