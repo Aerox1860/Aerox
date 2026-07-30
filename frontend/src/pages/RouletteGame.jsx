@@ -305,9 +305,17 @@ function PhaseTimer({ phase, seconds }) {
       <Timer className="w-4 h-4" />
       <div>
         <div className="text-[9px] uppercase tracking-widest leading-none opacity-80">{label}</div>
-        <div className="font-mono font-black text-lg leading-tight" data-testid="phase-seconds">
-          {String(seconds).padStart(2, "0")}s
-        </div>
+        {effectivePhase === "spinning" ? (
+          <div className="font-mono font-black text-lg leading-tight flex items-center gap-1" data-testid="phase-seconds">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-300 animate-pulse" />
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-300 animate-pulse" style={{ animationDelay: "0.2s" }} />
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-300 animate-pulse" style={{ animationDelay: "0.4s" }} />
+          </div>
+        ) : (
+          <div className="font-mono font-black text-lg leading-tight" data-testid="phase-seconds">
+            {String(seconds).padStart(2, "0")}s
+          </div>
+        )}
       </div>
     </div>
   );
