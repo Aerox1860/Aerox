@@ -112,13 +112,14 @@ export default function RouletteTableGrid({
               preserveAspectRatio="none"
               style={{ pointerEvents: "none" }}
             >
-              {/* Split hotspots — rectangles straddling the boundary between two adjacent cells */}
+              {/* Split hotspots — a full-length "line" along the shared edge between two cells. */}
               {splitHotspots.map((h) => {
-                // Vertical border (horizontal split, between two columns) → tall rect
-                // Horizontal border (vertical split, within one column)   → wide rect
+                // Vertical border (horizontal split, between two columns) → tall thin strip covering
+                // the full cell height along that column boundary.
+                // Horizontal border (vertical split, within one column)   → wide thin strip along the row boundary.
                 const isHorizontalSplit = h.y === 50 || h.y === 150 || h.y === 250;
-                const w = isHorizontalSplit ? 22 : 44;
-                const hgt = isHorizontalSplit ? 44 : 22;
+                const w = isHorizontalSplit ? 20 : 78;
+                const hgt = isHorizontalSplit ? 78 : 20;
                 const placed = !!bets[h.key];
                 return (
                   <g key={h.key}>
@@ -127,10 +128,10 @@ export default function RouletteTableGrid({
                       y={h.y - hgt / 2}
                       width={w}
                       height={hgt}
-                      fill={placed ? "rgba(250,204,21,0.35)" : "rgba(255,255,255,0.06)"}
-                      stroke={placed ? "rgba(250,204,21,0.8)" : "rgba(255,255,255,0.15)"}
-                      strokeWidth={1.5}
-                      rx={5}
+                      fill={placed ? "rgba(250,204,21,0.30)" : "rgba(255,255,255,0.03)"}
+                      stroke={placed ? "rgba(250,204,21,0.9)" : "rgba(255,255,255,0.10)"}
+                      strokeWidth={1}
+                      rx={3}
                       style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
                       data-testid={`hotspot-${h.key}`}
                       onClick={() => onPlace(h.key)}
