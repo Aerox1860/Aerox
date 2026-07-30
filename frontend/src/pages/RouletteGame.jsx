@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useParams, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Timer, X, TrendingUp, History, RotateCcw, Trophy, Undo2, HelpCircle, ClipboardList } from "lucide-react";
+import { ArrowLeft, Timer, X, TrendingUp, History, Trophy, Undo2, HelpCircle, ClipboardList, Coins } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -188,10 +188,6 @@ export default function RouletteGame() {
     }
   };
 
-  const clearLocalOnly = () => {
-    setBets({});
-  };
-
   const openHistory = async () => {
     setShowHistory(true);
     setLoadingHistory(true);
@@ -298,89 +294,39 @@ export default function RouletteGame() {
               resultNumber={null}
             />
 
-            {/* Round stake + Undo — surfaces the wheel-side stats while wheel is hidden */}
-            <div className="card-surface p-3 flex items-center justify-between gap-2 flex-wrap" data-testid="betting-status-bar">
-              <div className="flex items-center gap-3">
-                <div className="text-[10px] uppercase tracking-wider text-slate-400">
-                  Round Stake
-                  <div className="font-mono font-bold text-base text-white" data-testid="round-stake">₹{totalStake.toFixed(2)}</div>
+            {/* Compact action bar: Round Stake · Chip picker (opens popover) · Undo */}
+            <div className="card-surface p-2.5 flex items-center justify-between gap-2" data-testid="betting-status-bar">
+              <div className="min-w-0 flex items-center gap-2">
+                <div className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">
+                  Stake
+                  <div className="font-mono font-bold text-sm text-white leading-tight" data-testid="round-stake">
+                    ₹{totalStake.toFixed(0)}
+                  </div>
                 </div>
+                <ChipPicker chip={chip} onChange={setChip} />
               </div>
               <button
                 onClick={undoLastBet}
                 disabled={myBets.length === 0}
-                data-testid="undo-bet-btn-wheel"
+                data-testid="undo-bet-btn"
                 title={myBets.length === 0 ? "No bets to undo" : `Undo last bet — ${myBets.length} in stack`}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-yellow-400 text-black font-heading font-bold text-xs border-2 border-yellow-200 shadow-[0_0_20px_rgba(250,204,21,0.45)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:bg-black/40 disabled:text-slate-400 disabled:border-white/15"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-yellow-400 text-black font-heading font-bold text-xs border-2 border-yellow-200 shadow-[0_0_18px_rgba(250,204,21,0.4)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:bg-black/40 disabled:text-slate-400 disabled:border-white/15"
               >
                 <Undo2 className="w-4 h-4" />
-                <span>Undo last bet</span>
+                <span>Undo</span>
                 {myBets.length > 0 && (
-                  <span className="min-w-[22px] h-5 px-1.5 rounded-full bg-black text-yellow-300 text-[10px] font-black grid place-items-center border border-yellow-200">
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-black text-yellow-300 text-[10px] font-black grid place-items-center border border-yellow-200">
                     {myBets.length}
                   </span>
                 )}
               </button>
             </div>
 
-            {/* Bet mode selector removed — user clicks between cells directly for splits/corners. */}
-
-              {/* Chip selector + Undo */}
-              <div className="card-surface p-3 md:p-4">
-                <div className="flex items-center justify-between mb-2 gap-2">
-                  <div className="text-[10px] uppercase tracking-wider text-slate-400">Chip Size</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={undoLastBet}
-                      disabled={myBets.length === 0}
-                      data-testid="undo-bet-btn"
-                      title={myBets.length === 0 ? "No bets to undo" : `Undo last bet (${myBets.length} in stack)`}
-                      className="relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-yellow-400 text-black font-heading font-bold text-xs border-2 border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.4)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:bg-black/40 disabled:text-slate-300 disabled:border-white/15"
-                    >
-                      <Undo2 className="w-4 h-4" />
-                      <span>Undo</span>
-                      {myBets.length > 0 && (
-                        <span className="ml-0.5 min-w-[20px] h-5 px-1.5 rounded-full bg-black text-yellow-300 text-[10px] font-black grid place-items-center border border-yellow-200">
-                          {myBets.length}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      onClick={clearLocalOnly}
-                      disabled={totalStake === 0}
-                      data-testid="clear-chips-btn"
-                      className="chip !text-slate-300 hover:!text-white text-[10px] disabled:opacity-40"
-                    >
-                      <RotateCcw className="w-3 h-3" /> Clear view
-                    </button>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {CHIP_VALUES.map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => setChip(v)}
-                      data-testid={`chip-${v}`}
-                      className={`px-3 py-2 rounded-full font-heading font-bold text-xs md:text-sm border-2 transition-all ${
-                        chip === v
-                          ? "bg-yellow-400 text-black border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.5)]"
-                          : "bg-black/40 text-slate-200 border-white/15 hover:border-yellow-400/50"
-                      }`}
-                    >
-                      ₹{v}
-                    </button>
-                  ))}
-                  <div className="chip !bg-green-500/10 !border-green-400/40 !text-green-300 text-[10px] uppercase ml-auto">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Place Bets
-                  </div>
-                </div>
-              </div>
-
-              {/* My bets summary */}
-              <MyBetsSummary bets={myBets} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+            {/* My bets summary */}
+            <MyBetsSummary bets={myBets} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Rules modal */}
       <RulesModal open={showRules} onClose={() => setShowRules(false)} />
@@ -520,6 +466,49 @@ function RecentResults({ history }) {
         </div>
       ))}
       {history.length === 0 && <span className="text-[10px] text-slate-500">No history yet</span>}
+    </div>
+  );
+}
+
+function ChipPicker({ chip, onChange }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        data-testid="chip-picker-btn"
+        aria-expanded={open}
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-yellow-400 text-black font-heading font-black text-sm border-2 border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.5)] hover:brightness-110 active:scale-95 transition-all"
+      >
+        <Coins className="w-4 h-4" />
+        <span>₹{chip}</span>
+      </button>
+      {open && (
+        <>
+          {/* Click-away overlay */}
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} data-testid="chip-picker-scrim" />
+          <div
+            className="absolute z-40 top-full left-0 mt-2 p-2 rounded-xl bg-slate-900 border border-yellow-400/30 shadow-[0_10px_30px_rgba(0,0,0,0.55)] flex flex-col gap-1.5 min-w-[110px]"
+            data-testid="chip-picker-menu"
+          >
+            {CHIP_VALUES.map((v) => (
+              <button
+                key={v}
+                onClick={() => { onChange(v); setOpen(false); }}
+                data-testid={`chip-${v}`}
+                className={`w-full text-left px-3 py-2 rounded-lg font-heading font-bold text-sm border-2 transition-all ${
+                  chip === v
+                    ? "bg-yellow-400 text-black border-yellow-200"
+                    : "bg-black/40 text-slate-200 border-white/10 hover:border-yellow-400/50 hover:bg-black/60"
+                }`}
+              >
+                ₹{v}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

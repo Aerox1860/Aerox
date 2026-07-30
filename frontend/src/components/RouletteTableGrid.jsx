@@ -361,9 +361,6 @@ export default function RouletteTableGrid({
           </div>
         </div>
 
-        {/* Extra bottom margin to make room for the street 1-2-3 hotspot rendered just below the "1" cell. */}
-        <div className="h-2" aria-hidden />
-
         {/* Dozens row */}
         <div className="mt-1 flex gap-1">
           <div className="w-[38px] md:w-[46px]" />
@@ -371,16 +368,6 @@ export default function RouletteTableGrid({
             {outsideBtn("dozen_1", `${BET_LABELS.dozen_1} · 3:1`)}
             {outsideBtn("dozen_2", `${BET_LABELS.dozen_2} · 3:1`)}
             {outsideBtn("dozen_3", `${BET_LABELS.dozen_3} · 3:1`)}
-          </div>
-        </div>
-
-        {/* Special Street buttons kept as an accessible fallback for users who prefer
-            labeled buttons over on-table hotspots. */}
-        <div className="mt-1 flex gap-1">
-          <div className="w-[38px] md:w-[46px]" />
-          <div className="flex-1 grid grid-cols-2 gap-1">
-            {outsideBtn("street_0_1_2", "Trio 0·1·2 · 11:1", "!bg-emerald-900/40 hover:!bg-emerald-800/50")}
-            {outsideBtn("street_1_2_3", "Street 1·2·3 · 11:1", "!bg-emerald-900/40 hover:!bg-emerald-800/50")}
           </div>
         </div>
 
@@ -409,17 +396,6 @@ export default function RouletteTableGrid({
             {outsideBtn("odd", "ODD")}
             {outsideBtn("high", "19–36")}
           </div>
-        </div>
-
-        {/* Quick-help legend */}
-        <div className="mt-2 text-[10px] text-slate-400 text-center px-2 leading-relaxed">
-          Tap a number = <span className="text-yellow-300">Straight 35:1</span> · Tap the
-          <span className="mx-1 inline-block w-4 h-1 rounded bg-yellow-400/60 align-middle"></span>
-          yellow line between 2 numbers = <span className="text-yellow-300">Split 17:1</span> · Tap the
-          <span className="mx-1 inline-block w-2.5 h-2.5 rounded-full bg-cyan-400/40 border border-cyan-300/80 align-middle"></span>
-          cyan corner = <span className="text-yellow-300">Corner 8:1</span> · Tap the
-          <span className="mx-1 inline-block w-2.5 h-2.5 rounded-full bg-cyan-400/40 border border-cyan-300/80 align-middle text-[7px] text-white font-black leading-none">012</span>
-          trio circle or bottom line of &ldquo;1&rdquo; = <span className="text-yellow-300">Street 11:1</span>
         </div>
       </div>
     </div>
