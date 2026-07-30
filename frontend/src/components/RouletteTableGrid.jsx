@@ -1,447 +1,385 @@
-import {
-  colorOf, TABLE_GRID, BET_LABELS,
-  enumerateSplitHotspots, enumerateCornerHotspots,
-  enumerateStreetHotspots, enumerateSixLineHotspots,
-} from "@/lib/roulette";
+import { colorOf } from "@/lib/roulette";
 
 /**
- * European roulette betting table with direct-click hotspots for split & corner bets.
+ * Vertical European roulette betting board (mobile-first).
  *
- * Layout (viewBox coordinates):
- *   • Number grid inner area = 12 columns × 3 rows of 100×100 units → 1200×300.
- *   • Split hotspots: small rects straddling the boundary between two adjacent cells.
- *   • Corner hotspots: small circles at the intersection of 4 adjacent cells.
+ * Layout:
+ *   ┌───────────────┐
+ *   │       0       │  ← Zero bar spans all 3 columns
+ *   ├───┬───┬───────┤
+ *   │ 1 │ 2 │  3    │
+ *   │ 4 │ 5 │  6    │
+ *   ⋮   ⋮   ⋮
+ *   │34 │35 │  36   │
+ *   └───┴───┴───────┘
  *
- * The user clicks directly on the boundary/intersection — no mode switching, no multi-tap.
+ * SVG viewBox: 210 wide × 650 tall.
+ *   • Zero bar: y = 0..50   (full width 0..210)
+ *   • Grid:     y = 50..650 (12 rows × 50 tall, 3 cols × 70 wide)
+ *
+ * Interactive hotspots (via SVG overlay with overflow:visible):
+ *   • Vertical yellow line between 2 cells in same row  → Split (17:1)
+ *   • Horizontal yellow line between 2 cells in same col → Split (17:1)
+ *   • Horizontal yellow line at top of "1"/"2"/"3" cell → Split 0-N (17:1)
+ *   • Cyan circle at 4-cell intersection                → Corner (8:1)
+ *   • Yellow line on RIGHT edge of each row             → Street (11:1)
+ *   • Cyan "6" dot on RIGHT edge between 2 rows         → Six-Line (5:1)
+ *   • Cyan trio circle at top-corner of "1"/"2"         → Trio 0-1-2 / 0-2-3 (11:1)
  *
  * Props:
  *  - bets: { [betKey]: totalAmount }
  *  - onPlace: (betKey: string) => void
  *  - disabled: boolean
- *  - resultNumber: number | null
+ *  - resultNumber: number | null (for highlight)
  */
+
+// row 0 = [1,2,3], row 1 = [4,5,6], ..., row 11 = [34,35,36]
+const VROWS = Array.from({ length: 12 }, (_, r) => [3 * r + 1, 3 * r + 2, 3 * r + 3]);
+
+// Geometry constants in SVG viewBox coordinate units.
+const CELL_W = 70;
+const CELL_H = 50;
+const ZERO_H = 50;
+const VIEW_W = CELL_W * 3;              // 210
+const VIEW_H = ZERO_H + CELL_H * 12;    // 650
+const RIGHT_EDGE_X = VIEW_W + 8;        // hotspots parked just outside right edge
+
+const cellCX = (c) => c * CELL_W + CELL_W / 2;
+const cellCY = (r) => ZERO_H + r * CELL_H + CELL_H / 2;
+
+function enumerateSplits() {
+  const list = [];
+  // In-row (horizontal split, vertical yellow line): (r,c)|(r,c+1) for c in 0..1
+  for (let r = 0; r < 12; r++) {
+    for (let c = 0; c < 2; c++) {
+      const a = VROWS[r][c], b = VROWS[r][c + 1];
+      list.push({
+        key: `split_${a}_${b}`, nums: [a, b],
+        x: (c + 1) * CELL_W, y: cellCY(r), orient: "v",
+      });
+    }
+  }
+  // In-column (vertical split, horizontal yellow line): (r,c)|(r+1,c) for r in 0..10
+  for (let c = 0; c < 3; c++) {
+    for (let r = 0; r < 11; r++) {
+      const a = VROWS[r][c], b = VROWS[r + 1][c];
+      list.push({
+        key: `split_${a}_${b}`, nums: [a, b],
+        x: cellCX(c), y: ZERO_H + (r + 1) * CELL_H, orient: "h",
+      });
+    }
+  }
+  // 0-splits: between zero bar and each first-row cell (1, 2, 3)
+  for (let c = 0; c < 3; c++) {
+    const num = VROWS[0][c];
+    list.push({
+      key: `split_0_${num}`, nums: [0, num],
+      x: cellCX(c), y: ZERO_H, orient: "h",
+    });
+  }
+  return list;
+}
+
+function enumerateCorners() {
+  const list = [];
+  for (let r = 0; r < 11; r++) {
+    for (let c = 0; c < 2; c++) {
+      const nums = [
+        VROWS[r][c], VROWS[r][c + 1],
+        VROWS[r + 1][c], VROWS[r + 1][c + 1],
+      ].sort((a, b) => a - b);
+      list.push({
+        key: `corner_${nums.join("_")}`, nums,
+        x: (c + 1) * CELL_W,
+        y: ZERO_H + (r + 1) * CELL_H,
+      });
+    }
+  }
+  return list;
+}
+
+function enumerateStreets() {
+  const list = [];
+  for (let r = 0; r < 12; r++) {
+    const nums = [...VROWS[r]];
+    list.push({
+      key: `street_${nums.join("_")}`, nums,
+      x: RIGHT_EDGE_X, y: cellCY(r), kind: "street",
+    });
+  }
+  // Trios: 0-1-2 at corner between "1" (col 0) and "2" (col 1) on the top edge
+  //        0-2-3 at corner between "2" (col 1) and "3" (col 2) on the top edge
+  list.push({
+    key: "street_0_1_2", nums: [0, 1, 2],
+    x: CELL_W, y: ZERO_H, kind: "trio", label: "012",
+  });
+  list.push({
+    key: "street_0_2_3", nums: [0, 2, 3],
+    x: 2 * CELL_W, y: ZERO_H, kind: "trio", label: "023",
+  });
+  return list;
+}
+
+function enumerateSixLines() {
+  const list = [];
+  for (let r = 0; r < 11; r++) {
+    const nums = [...VROWS[r], ...VROWS[r + 1]];
+    list.push({
+      key: `six_line_${nums.join("_")}`, nums,
+      x: RIGHT_EDGE_X, y: ZERO_H + (r + 1) * CELL_H,
+    });
+  }
+  return list;
+}
+
 export default function RouletteTableGrid({
   bets = {},
   onPlace,
   disabled = false,
   resultNumber = null,
 }) {
-  const splitHotspots = enumerateSplitHotspots();
-  const cornerHotspots = enumerateCornerHotspots();
-  const streetHotspots = enumerateStreetHotspots();
-  const sixLineHotspots = enumerateSixLineHotspots();
+  const splits = enumerateSplits();
+  const corners = enumerateCorners();
+  const streets = enumerateStreets();
+  const sixLines = enumerateSixLines();
 
-  // Chip badge that overlays a number/outside button (pointer-events-none so it never
-  // steals clicks — multi-click on same bet ADDS a chip).
-  const chipOverlay = (key) => {
-    const v = bets[key];
+  // Circular chip overlay for on-cell bets (straight, red, black, ...).
+  const ChipBadge = ({ betKey }) => {
+    const v = bets[betKey];
     if (!v) return null;
     return (
       <div
         className="absolute inset-0 flex items-center justify-center pointer-events-none"
-        data-testid={`bet-chip-${key}`}
+        data-testid={`bet-chip-${betKey}`}
       >
-        <div className="min-w-[30px] h-[24px] px-2 rounded-full bg-yellow-400 text-black text-[11px] font-black grid place-items-center border-2 border-yellow-700 shadow-[0_2px_5px_rgba(0,0,0,0.6)]">
+        <div className="min-w-[26px] h-[22px] px-1.5 rounded-full bg-yellow-400 text-black text-[10px] font-black grid place-items-center border-2 border-yellow-700 shadow-[0_2px_5px_rgba(0,0,0,0.6)]">
           ₹{v}
         </div>
       </div>
     );
   };
 
-  const numCell = (n) => {
-    const c = colorOf(n);
-    const ovalBg =
-      c === "green"
-        ? "bg-emerald-600"
-        : c === "red"
-        ? "bg-red-600"
-        : "bg-neutral-900";
-    const winHighlight = resultNumber === n ? "ring-2 ring-yellow-300" : "";
-    return (
-      <button
-        key={`n-${n}`}
-        onClick={() => !disabled && onPlace(`straight_${n}`)}
-        data-testid={`bet-straight-${n}`}
-        className={`relative aspect-[3/2] border border-white/70 grid place-items-center transition-all bg-emerald-800/40 hover:bg-emerald-700/50 ${disabled ? "pointer-events-none" : ""}`}
-      >
-        <span
-          className={`inline-flex items-center justify-center w-[70%] aspect-square rounded-full ${ovalBg} ${winHighlight} text-white font-heading font-black text-sm md:text-base shadow-[0_2px_4px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.2)]`}
-        >
-          {n}
-        </span>
-        {chipOverlay(`straight_${n}`)}
-      </button>
-    );
-  };
-
-  const outsideBtn = (key, label, extraClass = "") => (
-    <button
-      onClick={() => !disabled && onPlace(key)}
-      data-testid={`bet-${key}`}
-      className={`relative py-3 md:py-4 border border-white/15 text-white font-heading font-bold text-xs md:text-sm hover:bg-white/5 transition-all ${disabled ? "pointer-events-none" : ""} ${extraClass}`}
-    >
-      {label}
-      {chipOverlay(key)}
-    </button>
-  );
-
   return (
-    <div className="w-full max-w-3xl mx-auto" data-testid="roulette-betting-table">
+    <div
+      className="mx-auto w-full max-w-[240px] md:max-w-[280px]"
+      data-testid="roulette-betting-table"
+    >
       <div
-        className="rounded-xl p-2 md:p-3 border border-yellow-900/40"
+        className="relative rounded-lg border-2 border-yellow-500/40 shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
         style={{
           background:
-            "radial-gradient(circle at 50% 30%, #0e6e3a 0%, #093f22 70%, #052213 100%)",
-          boxShadow: "inset 0 0 30px rgba(0,0,0,0.55)",
+            "radial-gradient(circle at 50% 20%, #0e6e3a 0%, #093f22 70%, #052213 100%)",
         }}
       >
-        {/* Numbers area: 0 column + 3×12 grid + SVG hotspot overlay */}
-        <div className="flex gap-1">
-          {/* Zero (spans 3 rows on the left) — big vertical "0" oval on a green cell */}
-          <button
-            onClick={() => !disabled && onPlace("straight_0")}
-            data-testid="bet-straight-0"
-            className={`relative aspect-[1/3] w-[38px] md:w-[46px] bg-emerald-800/40 border border-white/70 grid place-items-center transition-all hover:bg-emerald-700/50 ${disabled ? "pointer-events-none" : ""}`}
-          >
-            <span
-              className={`inline-flex items-center justify-center w-[70%] aspect-[1/2] rounded-full bg-emerald-600 text-white font-heading font-black text-xl shadow-[0_2px_4px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.2)] ${
-                resultNumber === 0 ? "ring-2 ring-yellow-300" : ""
-              }`}
-            >
-              0
-            </span>
-            {chipOverlay("straight_0")}
-          </button>
+        {/* Zero bar */}
+        <button
+          type="button"
+          onClick={() => !disabled && onPlace("straight_0")}
+          data-testid="bet-straight-0"
+          className={`relative w-full aspect-[210/50] bg-emerald-600 border-b-2 border-yellow-500/40 grid place-items-center transition-all hover:brightness-110 active:scale-[0.99] ${
+            disabled ? "pointer-events-none" : ""
+          } ${resultNumber === 0 ? "ring-2 ring-yellow-300" : ""}`}
+        >
+          <span className="text-white font-heading font-black text-2xl drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]">
+            0
+          </span>
+          <ChipBadge betKey="straight_0" />
+        </button>
 
-          {/* 3×12 grid with hotspot SVG overlay */}
-          <div className="relative flex-1">
-            <div className="grid grid-cols-12 gap-0">
-              {TABLE_GRID.flat().map((n) => numCell(n))}
-            </div>
-
-            {/* SVG hotspot overlay — click BETWEEN cells for splits & corners.
-                overflow:visible lets hotspots on the LEFT edge (0-cell splits) and BOTTOM edge
-                (street 1-2-3) extend beyond the SVG viewBox into the seam. */}
-            <svg
-              className="absolute inset-0 w-full h-full"
-              viewBox="0 0 1200 300"
-              preserveAspectRatio="none"
-              style={{ pointerEvents: "none", overflow: "visible" }}
-            >
-              {/* 0-CELL adjacency hotspots (rendered here so they overlap the seam
-                  between the "0" button and the number grid) */}
-              {(() => {
-                // Split between 0 and each of 1, 2, 3 — vertical yellow line at grid's left edge.
-                const zeroSplits = [
-                  { key: "split_0_1", nums: [0, 1], y: 250 }, // bottom row ("1")
-                  { key: "split_0_2", nums: [0, 2], y: 150 }, // middle row ("2")
-                  { key: "split_0_3", nums: [0, 3], y: 50  }, // top row ("3")
-                ];
-                return zeroSplits.map((h) => {
-                  const placed = !!bets[h.key];
-                  return (
-                    <g key={h.key}>
-                      {/* Fat invisible hit line, extends into the seam gap */}
-                      <line
-                        x1={-4} y1={h.y - 30} x2={-4} y2={h.y + 30}
-                        stroke="transparent"
-                        strokeWidth={22}
-                        strokeLinecap="round"
-                        style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
-                        data-testid={`hotspot-${h.key}`}
-                        onClick={() => onPlace(h.key)}
-                      >
-                        <title>{`Split ${h.nums.join(" · ")} — 17:1`}</title>
-                      </line>
-                      {/* Visible thin yellow line */}
-                      <line
-                        x1={-4} y1={h.y - 30} x2={-4} y2={h.y + 30}
-                        stroke={placed ? "#facc15" : "rgba(250,204,21,0.85)"}
-                        strokeWidth={placed ? 4 : 2.5}
-                        strokeLinecap="round"
-                        pointerEvents="none"
-                      />
-                      {placed && (
-                        <g pointerEvents="none">
-                          <circle cx={-4} cy={h.y} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
-                          <text
-                            x={-4} y={h.y}
-                            fill="#000" fontSize={9} fontWeight={900}
-                            textAnchor="middle" dominantBaseline="middle"
-                          >₹{bets[h.key]}</text>
-                        </g>
-                      )}
-                    </g>
-                  );
-                });
-              })()}
-
-              {/* Trios 0-1-2 (bottom-left) and 0-2-3 (top-left) — cyan circles at the two corners
-                  where the "0" cell meets the number grid. */}
-              {[
-                { key: "street_0_1_2", label: "012", y: 200 },
-                { key: "street_0_2_3", label: "023", y: 0 },
-              ].map(({ key, label, y }) => {
-                const placed = !!bets[key];
-                const cx = -4, cy = y;
-                return (
-                  <g key={key}>
-                    <circle
-                      cx={cx} cy={cy} r={16}
-                      fill={placed ? "rgba(250,204,21,0.40)" : "rgba(34,211,238,0.18)"}
-                      stroke={placed ? "rgba(250,204,21,1)" : "rgba(34,211,238,0.9)"}
-                      strokeWidth={placed ? 2 : 1.8}
-                      style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
-                      data-testid={`hotspot-${key}`}
-                      onClick={() => onPlace(key)}
-                    >
-                      <title>{`Trio ${key.replace("street_", "").split("_").join("·")} — 11:1`}</title>
-                    </circle>
-                    {!placed && (
-                      <text
-                        x={cx} y={cy}
-                        fill="rgba(255,255,255,0.95)" fontSize={11} fontWeight={900}
-                        textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
-                      >{label}</text>
-                    )}
-                    {placed && (
-                      <g pointerEvents="none">
-                        <circle cx={cx} cy={cy} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
-                        <text
-                          x={cx} y={cy}
-                          fill="#000" fontSize={9} fontWeight={900}
-                          textAnchor="middle" dominantBaseline="middle"
-                        >₹{bets[key]}</text>
-                      </g>
-                    )}
-                  </g>
-                );
-              })}
-
-              {/* All 12 street hotspots (3-num column bets) — thin horizontal yellow lines
-                  just BELOW the number grid. */}
-              {streetHotspots.map((h) => {
-                const placed = !!bets[h.key];
-                return (
-                  <g key={h.key}>
-                    <line
-                      x1={h.x - 40} y1={h.y} x2={h.x + 40} y2={h.y}
-                      stroke="transparent" strokeWidth={26} strokeLinecap="round"
-                      style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
-                      data-testid={`hotspot-${h.key}`}
-                      onClick={() => onPlace(h.key)}
-                    >
-                      <title>{`Street ${h.nums.join(" · ")} — 11:1`}</title>
-                    </line>
-                    <line
-                      x1={h.x - 40} y1={h.y} x2={h.x + 40} y2={h.y}
-                      stroke={placed ? "#facc15" : "rgba(250,204,21,0.85)"}
-                      strokeWidth={placed ? 4 : 3}
-                      strokeLinecap="round"
-                      pointerEvents="none"
-                    />
-                    {placed && (
-                      <g pointerEvents="none">
-                        <circle cx={h.x} cy={h.y} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
-                        <text
-                          x={h.x} y={h.y}
-                          fill="#000" fontSize={9} fontWeight={900}
-                          textAnchor="middle" dominantBaseline="middle"
-                        >₹{bets[h.key]}</text>
-                      </g>
-                    )}
-                  </g>
-                );
-              })}
-
-              {/* All 11 six-line hotspots (6-num bets between adjacent columns) — cyan diamond dots
-                  at the boundary between two column streets, on the bottom outer edge. */}
-              {sixLineHotspots.map((h) => {
-                const placed = !!bets[h.key];
-                return (
-                  <g key={h.key}>
-                    <circle
-                      cx={h.x} cy={h.y} r={12}
-                      fill={placed ? "rgba(250,204,21,0.40)" : "rgba(34,211,238,0.15)"}
-                      stroke={placed ? "rgba(250,204,21,1)" : "rgba(34,211,238,0.85)"}
-                      strokeWidth={placed ? 2 : 1.5}
-                      style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
-                      data-testid={`hotspot-${h.key}`}
-                      onClick={() => onPlace(h.key)}
-                    >
-                      <title>{`Six-Line ${h.nums.join(" · ")} — 5:1`}</title>
-                    </circle>
-                    {!placed && (
-                      <text
-                        x={h.x} y={h.y}
-                        fill="rgba(255,255,255,0.9)" fontSize={9} fontWeight={900}
-                        textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
-                      >6</text>
-                    )}
-                    {placed && (
-                      <g pointerEvents="none">
-                        <circle cx={h.x} cy={h.y} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
-                        <text
-                          x={h.x} y={h.y}
-                          fill="#000" fontSize={9} fontWeight={900}
-                          textAnchor="middle" dominantBaseline="middle"
-                        >₹{bets[h.key]}</text>
-                      </g>
-                    )}
-                  </g>
-                );
-              })}
-              {/* Split hotspots — a single thin YELLOW line running along the shared edge
-                  between two adjacent cells. A wider invisible line underneath keeps the click
-                  target easy to hit. */}
-              {splitHotspots.map((h) => {
-                const isHorizontalSplit = h.y === 50 || h.y === 150 || h.y === 250;
-                // Visible line endpoints
-                let x1, y1, x2, y2;
-                if (isHorizontalSplit) {
-                  // Vertical line between two columns — spans one cell's height
-                  x1 = h.x; x2 = h.x;
-                  y1 = h.y - 40; y2 = h.y + 40;
-                } else {
-                  // Horizontal line between two rows in the same column — spans cell width
-                  x1 = h.x - 40; x2 = h.x + 40;
-                  y1 = h.y; y2 = h.y;
-                }
-                const placed = !!bets[h.key];
-                return (
-                  <g key={h.key}>
-                    {/* Invisible hit area (fat transparent line) */}
-                    <line
-                      x1={x1} y1={y1} x2={x2} y2={y2}
-                      stroke="transparent"
-                      strokeWidth={22}
-                      strokeLinecap="round"
-                      style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
-                      data-testid={`hotspot-${h.key}`}
-                      onClick={() => onPlace(h.key)}
-                    >
-                      <title>{`Split ${h.nums.join(" · ")} — 17:1`}</title>
-                    </line>
-                    {/* Visible thin yellow line */}
-                    <line
-                      x1={x1} y1={y1} x2={x2} y2={y2}
-                      stroke={placed ? "#facc15" : "rgba(250,204,21,0.85)"}
-                      strokeWidth={placed ? 4 : 2.5}
-                      strokeLinecap="round"
-                      pointerEvents="none"
-                    />
-                    {placed && (
-                      <g pointerEvents="none">
-                        <circle cx={h.x} cy={h.y} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
-                        <text
-                          x={h.x}
-                          y={h.y}
-                          fill="#000"
-                          fontSize={9}
-                          fontWeight={900}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                        >
-                          ₹{bets[h.key]}
-                        </text>
-                      </g>
-                    )}
-                  </g>
-                );
-              })}
-
-              {/* Corner hotspots — small circles at 4-cell intersections */}
-              {cornerHotspots.map((h) => {
-                const placed = !!bets[h.key];
-                return (
-                  <g key={h.key}>
-                    <circle
-                      cx={h.x}
-                      cy={h.y}
-                      r={14}
-                      fill={placed ? "rgba(250,204,21,0.40)" : "rgba(34,211,238,0.15)"}
-                      stroke={placed ? "rgba(250,204,21,1)" : "rgba(34,211,238,0.85)"}
-                      strokeWidth={placed ? 2 : 1.5}
-                      style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
-                      data-testid={`hotspot-${h.key}`}
-                      onClick={() => onPlace(h.key)}
-                    >
-                      <title>{`Corner ${h.nums.join(" · ")} — 8:1`}</title>
-                    </circle>
-                    {!placed && (
-                      <text
-                        x={h.x}
-                        y={h.y}
-                        fill="rgba(255,255,255,0.9)"
-                        fontSize={11}
-                        fontWeight={900}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        pointerEvents="none"
-                      >
-                        +
-                      </text>
-                    )}
-                    {placed && (
-                      <g pointerEvents="none">
-                        <circle cx={h.x} cy={h.y} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
-                        <text
-                          x={h.x}
-                          y={h.y}
-                          fill="#000"
-                          fontSize={9}
-                          fontWeight={900}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                        >
-                          ₹{bets[h.key]}
-                        </text>
-                      </g>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
+        {/* Number grid: 12 rows × 3 cols */}
+        <div className="grid grid-cols-3 relative">
+          {VROWS.flat().map((n) => {
+            const c = colorOf(n);
+            const bg =
+              c === "red"
+                ? "bg-red-600"
+                : c === "black"
+                ? "bg-neutral-900"
+                : "bg-emerald-600";
+            const highlight = resultNumber === n ? "ring-2 ring-yellow-300 z-10" : "";
+            return (
+              <button
+                key={`n-${n}`}
+                type="button"
+                onClick={() => !disabled && onPlace(`straight_${n}`)}
+                data-testid={`bet-straight-${n}`}
+                className={`relative aspect-[7/5] border border-white/60 grid place-items-center ${bg} ${highlight} transition-all active:brightness-125 ${
+                  disabled ? "pointer-events-none" : ""
+                }`}
+              >
+                <span className="text-white font-heading font-black text-base md:text-lg drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
+                  {n}
+                </span>
+                <ChipBadge betKey={`straight_${n}`} />
+              </button>
+            );
+          })}
         </div>
 
-        {/* Dozens row */}
-        <div className="mt-1 flex gap-1">
-          <div className="w-[38px] md:w-[46px]" />
-          <div className="flex-1 grid grid-cols-3 gap-1">
-            {outsideBtn("dozen_1", `${BET_LABELS.dozen_1} · 3:1`)}
-            {outsideBtn("dozen_2", `${BET_LABELS.dozen_2} · 3:1`)}
-            {outsideBtn("dozen_3", `${BET_LABELS.dozen_3} · 3:1`)}
-          </div>
-        </div>
+        {/* SVG hotspot overlay — spans full table (zero bar + grid).
+            overflow:visible allows street/six-line hotspots to extend past the right edge. */}
+        <svg
+          className="absolute inset-0 w-full h-full"
+          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+          preserveAspectRatio="none"
+          style={{ pointerEvents: "none", overflow: "visible" }}
+        >
+          {/* Splits — thin yellow lines between adjacent cells */}
+          {splits.map((h) => {
+            const isVert = h.orient === "v";
+            const x1 = isVert ? h.x : h.x - CELL_W * 0.4;
+            const x2 = isVert ? h.x : h.x + CELL_W * 0.4;
+            const y1 = isVert ? h.y - CELL_H * 0.4 : h.y;
+            const y2 = isVert ? h.y + CELL_H * 0.4 : h.y;
+            const placed = !!bets[h.key];
+            return (
+              <g key={h.key}>
+                <line
+                  x1={x1} y1={y1} x2={x2} y2={y2}
+                  stroke="transparent" strokeWidth={18} strokeLinecap="round"
+                  style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
+                  data-testid={`hotspot-${h.key}`}
+                  onClick={() => onPlace(h.key)}
+                >
+                  <title>{`Split ${h.nums.join(" · ")} — 17:1`}</title>
+                </line>
+                <line
+                  x1={x1} y1={y1} x2={x2} y2={y2}
+                  stroke={placed ? "#facc15" : "rgba(250,204,21,0.85)"}
+                  strokeWidth={placed ? 3.5 : 2.5}
+                  strokeLinecap="round"
+                  pointerEvents="none"
+                />
+                {placed && (
+                  <ChipDot cx={h.x} cy={h.y} amount={bets[h.key]} />
+                )}
+              </g>
+            );
+          })}
 
-        {/* Even chances row */}
-        <div className="mt-1 flex gap-1">
-          <div className="w-[38px] md:w-[46px]" />
-          <div className="flex-1 grid grid-cols-6 gap-1">
-            {outsideBtn("low", "1–18")}
-            {outsideBtn("even", "EVEN")}
-            <button
-              onClick={() => !disabled && onPlace("red")}
-              data-testid="bet-red"
-              className={`relative py-3 md:py-4 border border-white/25 grid place-items-center text-white font-heading font-bold text-xs md:text-sm bg-emerald-800/40 hover:bg-emerald-700/50 transition-all ${disabled ? "pointer-events-none" : ""}`}
-            >
-              <span className="inline-block w-6 h-6 md:w-7 md:h-7 bg-red-600 rotate-45 border border-white/30 shadow-[0_2px_3px_rgba(0,0,0,0.4)]"></span>
-              {chipOverlay("red")}
-            </button>
-            <button
-              onClick={() => !disabled && onPlace("black")}
-              data-testid="bet-black"
-              className={`relative py-3 md:py-4 border border-white/25 grid place-items-center text-white font-heading font-bold text-xs md:text-sm bg-emerald-800/40 hover:bg-emerald-700/50 transition-all ${disabled ? "pointer-events-none" : ""}`}
-            >
-              <span className="inline-block w-6 h-6 md:w-7 md:h-7 bg-neutral-900 rotate-45 border border-white/30 shadow-[0_2px_3px_rgba(0,0,0,0.4)]"></span>
-              {chipOverlay("black")}
-            </button>
-            {outsideBtn("odd", "ODD")}
-            {outsideBtn("high", "19–36")}
-          </div>
-        </div>
+          {/* Corners — cyan dots at 4-cell intersections */}
+          {corners.map((h) => {
+            const placed = !!bets[h.key];
+            return (
+              <g key={h.key}>
+                <circle
+                  cx={h.x} cy={h.y} r={11}
+                  fill={placed ? "rgba(250,204,21,0.4)" : "rgba(34,211,238,0.15)"}
+                  stroke={placed ? "rgba(250,204,21,1)" : "rgba(34,211,238,0.9)"}
+                  strokeWidth={placed ? 2 : 1.5}
+                  style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
+                  data-testid={`hotspot-${h.key}`}
+                  onClick={() => onPlace(h.key)}
+                >
+                  <title>{`Corner ${h.nums.join(" · ")} — 8:1`}</title>
+                </circle>
+                {!placed && (
+                  <text
+                    x={h.x} y={h.y}
+                    fill="rgba(255,255,255,0.9)" fontSize={9} fontWeight={900}
+                    textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
+                  >+</text>
+                )}
+                {placed && <ChipDot cx={h.x} cy={h.y} amount={bets[h.key]} />}
+              </g>
+            );
+          })}
+
+          {/* Streets and trios */}
+          {streets.map((h) => {
+            const placed = !!bets[h.key];
+            if (h.kind === "trio") {
+              return (
+                <g key={h.key}>
+                  <circle
+                    cx={h.x} cy={h.y} r={13}
+                    fill={placed ? "rgba(250,204,21,0.4)" : "rgba(34,211,238,0.18)"}
+                    stroke={placed ? "rgba(250,204,21,1)" : "rgba(34,211,238,0.9)"}
+                    strokeWidth={placed ? 2 : 1.5}
+                    style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
+                    data-testid={`hotspot-${h.key}`}
+                    onClick={() => onPlace(h.key)}
+                  >
+                    <title>{`Trio ${h.nums.join(" · ")} — 11:1`}</title>
+                  </circle>
+                  {!placed && (
+                    <text
+                      x={h.x} y={h.y}
+                      fill="rgba(255,255,255,0.95)" fontSize={9} fontWeight={900}
+                      textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
+                    >{h.label}</text>
+                  )}
+                  {placed && <ChipDot cx={h.x} cy={h.y} amount={bets[h.key]} />}
+                </g>
+              );
+            }
+            // Regular row-street: yellow line on right outer edge
+            return (
+              <g key={h.key}>
+                <line
+                  x1={h.x} y1={h.y - CELL_H * 0.4} x2={h.x} y2={h.y + CELL_H * 0.4}
+                  stroke="transparent" strokeWidth={20} strokeLinecap="round"
+                  style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
+                  data-testid={`hotspot-${h.key}`}
+                  onClick={() => onPlace(h.key)}
+                >
+                  <title>{`Street ${h.nums.join(" · ")} — 11:1`}</title>
+                </line>
+                <line
+                  x1={h.x} y1={h.y - CELL_H * 0.4} x2={h.x} y2={h.y + CELL_H * 0.4}
+                  stroke={placed ? "#facc15" : "rgba(250,204,21,0.85)"}
+                  strokeWidth={placed ? 4 : 3}
+                  strokeLinecap="round"
+                  pointerEvents="none"
+                />
+                {placed && <ChipDot cx={h.x} cy={h.y} amount={bets[h.key]} />}
+              </g>
+            );
+          })}
+
+          {/* Six-lines — cyan "6" dots on the RIGHT edge between two rows */}
+          {sixLines.map((h) => {
+            const placed = !!bets[h.key];
+            return (
+              <g key={h.key}>
+                <circle
+                  cx={h.x} cy={h.y} r={11}
+                  fill={placed ? "rgba(250,204,21,0.4)" : "rgba(34,211,238,0.15)"}
+                  stroke={placed ? "rgba(250,204,21,1)" : "rgba(34,211,238,0.85)"}
+                  strokeWidth={placed ? 2 : 1.5}
+                  style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
+                  data-testid={`hotspot-${h.key}`}
+                  onClick={() => onPlace(h.key)}
+                >
+                  <title>{`Six-Line ${h.nums.join(" · ")} — 5:1`}</title>
+                </circle>
+                {!placed && (
+                  <text
+                    x={h.x} y={h.y}
+                    fill="rgba(255,255,255,0.9)" fontSize={8} fontWeight={900}
+                    textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
+                  >6</text>
+                )}
+                {placed && <ChipDot cx={h.x} cy={h.y} amount={bets[h.key]} />}
+              </g>
+            );
+          })}
+        </svg>
       </div>
     </div>
+  );
+}
+
+// Small yellow "placed" chip badge rendered inside the SVG for hotspot bets.
+function ChipDot({ cx, cy, amount }) {
+  return (
+    <g pointerEvents="none">
+      <circle cx={cx} cy={cy} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
+      <text
+        x={cx} y={cy}
+        fill="#000" fontSize={8} fontWeight={900}
+        textAnchor="middle" dominantBaseline="middle"
+      >₹{amount}</text>
+    </g>
   );
 }

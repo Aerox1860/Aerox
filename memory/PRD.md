@@ -40,6 +40,12 @@ AeroX Crash is a real-time aviation "crash" style multiplayer game where players
 - Roulette lobby (`/games/roulette`) with 7 live tables: Hindi, Lightning, American, Mega Fire Blaze, Speed Sic Bo, Bucharest Quantum, Arabic
 - **Playable European Roulette engine** (2026-07-30) — `/games/roulette/:tableId` opens a real game with wooden wheel (exact 37-number European sequence), 20s betting → 8s spin → 4s result loop, ball animates to winning number, popup shows result. Bet types: straight (35:1), red/black/even/odd/low/high (1:1), dozens (3:1). Zero rule: only straight-0 wins on zero. Backend engine in `/app/backend/roulette.py` with routes `GET /api/roulette/state`, `POST /api/roulette/bet`, `GET /api/roulette/my-bets`, `GET /api/roulette/history`.
 
+### v1.3 additions (2026-07-30 — Vertical Board Redesign)
+- **Vertical roulette board layout** (0 at top spanning full width, then 12 rows of 1·2·3 / 4·5·6 / ... / 34·35·36)
+- **Right sidebar controls**: circular chip picker (opens ₹10-₹1000 popover), circular undo button (with count), stake pill, and outside bets (RED / BLACK / EVEN / ODD / 1-18 / 19-36 / 1st-2nd-3rd 12)
+- All inside-bet hotspots (splits, corners, streets, six-lines, trios 0-1-2 & 0-2-3) preserved on the vertical grid
+- Mobile-first sizing: 240–280px table + 100–130px sidebar fits within a 390px viewport
+
 ### v1.2 additions (2026-07-30)
 - Roulette split (17:1), corner (8:1), street (11:1), and six-line (5:1) bets — full inside-bet coverage
 - All 12 in-column streets + trios 0-1-2 and 0-2-3 supported
