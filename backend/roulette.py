@@ -121,15 +121,14 @@ class BetIn(BaseModel):
     amount: float = Field(gt=0)
 
 
-def build_router(db, credit_fn, debit_fn):
+def build_router(db, credit_fn, debit_fn, current_user_dep):
     """Attach roulette routes and start the round loop.
 
-    db          : Motor async DB
-    credit_fn   : async (user_id, amount, ttype, note, ref) -> None
-    debit_fn    : async (user_id, amount, ttype, note, ref) -> None
+    db                : Motor async DB
+    credit_fn         : async (user_id, amount, ttype, note, ref) -> None
+    debit_fn          : async (user_id, amount, ttype, note, ref) -> None
+    current_user_dep  : FastAPI dependency callable that resolves the current user
     """
-    from server import current_user  # local import to avoid cycles
-
     router = APIRouter(prefix="/api/roulette")
 
     async def _round_loop():
@@ -218,7 +217,7 @@ def build_router(db, credit_fn, debit_fn):
         }
 
     @router.post("/bet")
-    async def place_bet(body: BetIn, user: dict = Depends(current_user)):
+    async def place_bet(body: BetIn, user: dict = Depends(current_user_dep)):
         if STATE["phase"] != "betting":
             raise HTTPException(400, "Betting is closed for this round")
         if not validate_bet_type(body.bet_type):
@@ -251,7 +250,7 @@ def build_router(db, credit_fn, debit_fn):
         return {"ok": True, "bet_id": bet_id, "balance": u.get("balance", 0)}
 
     @router.get("/my-bets")
-    async def my_bets(user: dict = Depends(current_user)):
+    async def my_bets(user: dict = Depends(current_user_dep)):
         # Current-round bets + last 20 settled
         cur = await db.roulette_bets.find(
             {"user_id": user["id"], "round_id": STATE["round_id"]}

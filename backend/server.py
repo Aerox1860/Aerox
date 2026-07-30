@@ -1366,7 +1366,7 @@ app.include_router(api)
 
 # ------------- Roulette module -------------
 from roulette import build_router as _build_roulette
-_roulette_router, _roulette_loop = _build_roulette(db, credit, debit)
+_roulette_router, _roulette_loop = _build_roulette(db, credit, debit, current_user)
 app.include_router(_roulette_router)
 
 app.add_middleware(
