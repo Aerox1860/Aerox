@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useParams, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Timer, X, TrendingUp, History, RotateCcw, Trophy } from "lucide-react";
+import { ArrowLeft, Timer, X, TrendingUp, History, RotateCcw, Trophy, Undo2, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -20,11 +20,11 @@ export default function RouletteGame() {
   const [state, setState] = useState(null);          // {phase, phase_end, result_number, history, ...}
   const [bets, setBets] = useState({});              // roundId -> {betKey: amount}
   const [chip, setChip] = useState(50);
-  const [placing, setPlacing] = useState(false);
   const [showResult, setShowResult] = useState(null); // {number, netProfit}
   const [myBets, setMyBets] = useState([]);           // current round bets from server
   const [mode, setMode] = useState("straight");       // straight | split | corner
   const [selectedNums, setSelectedNums] = useState([]);
+  const [showRules, setShowRules] = useState(false);
   const myBetsRef = useRef([]);
   const lastResultRoundRef = useRef(null);
   const lastPhaseRef = useRef(null);
@@ -95,22 +95,29 @@ export default function RouletteGame() {
   const balance = user?.balance ?? 0;
 
   const placeBet = async (betKey) => {
-    if (!isBetting || placing) return;
+    if (!isBetting) return;
     if (chip <= 0) return;
     if (chip > balance) {
       toast.error("Insufficient balance");
       return;
     }
-    setPlacing(true);
+    // Do NOT set `placing` — allow spam-clicking multiple bets in quick succession.
+    // Optimistically update local chip stack; server request runs in background.
+    setBets((prev) => ({ ...prev, [betKey]: (prev[betKey] || 0) + chip }));
     try {
       await api.post("/roulette/bet", { bet_type: betKey, amount: chip });
-      setBets((prev) => ({ ...prev, [betKey]: (prev[betKey] || 0) + chip }));
       refresh?.();
       loadMyBets();
     } catch (e) {
+      // Rollback optimistic stack on failure
+      setBets((prev) => {
+        const next = { ...prev };
+        const back = (next[betKey] || 0) - chip;
+        if (back > 0) next[betKey] = back;
+        else delete next[betKey];
+        return next;
+      });
       toast.error(formatApiError(e));
-    } finally {
-      setPlacing(false);
     }
   };
 
@@ -154,16 +161,40 @@ export default function RouletteGame() {
     }
   };
 
-  // Remove ALL bets on a given key during betting phase (one API call per matching row).
+  // Undo the LAST placed bet in this round (LIFO stack — removes 10 → 9 → 8 → …).
+  const undoLastBet = async () => {
+    if (!isBetting) return;
+    if (myBets.length === 0) {
+      toast.info("No bets to undo");
+      return;
+    }
+    // Newest bet = highest created_at
+    const sorted = [...myBets].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const last = sorted[0];
+    try {
+      await api.delete(`/roulette/bet/${last.id}`);
+      // Decrement local chip stack for this bet_type by the exact amount
+      setBets((prev) => {
+        const next = { ...prev };
+        const remaining = (next[last.bet_type] || 0) - last.amount;
+        if (remaining > 0) next[last.bet_type] = remaining;
+        else delete next[last.bet_type];
+        return next;
+      });
+      refresh?.();
+      loadMyBets();
+    } catch (e) {
+      toast.error(formatApiError(e));
+    }
+  };
+
+  // Remove ALL bets on a given key during betting phase (called when user clicks a chip).
   const removeBetKey = async (betKey) => {
-    if (!isBetting || placing) return;
+    if (!isBetting) return;
     const matching = myBets.filter((b) => b.bet_type === betKey);
     if (matching.length === 0) return;
-    setPlacing(true);
     try {
-      for (const m of matching) {
-        await api.delete(`/roulette/bet/${m.id}`);
-      }
+      await Promise.all(matching.map((m) => api.delete(`/roulette/bet/${m.id}`)));
       setBets((prev) => {
         const next = { ...prev };
         delete next[betKey];
@@ -174,8 +205,6 @@ export default function RouletteGame() {
       toast.success(`Removed ${matching.length > 1 ? matching.length + " bets" : "bet"}`);
     } catch (e) {
       toast.error(formatApiError(e));
-    } finally {
-      setPlacing(false);
     }
   };
 
@@ -199,9 +228,19 @@ export default function RouletteGame() {
           <div className="font-heading text-lg md:text-xl font-black leading-tight">{table.name}</div>
           <div className={`text-[10px] uppercase ${table.accent}`}>{table.tagline}</div>
         </div>
-        <div className="text-right text-[11px]">
-          <div className="text-slate-400">Balance</div>
-          <div className="font-mono font-bold text-cyan-300" data-testid="game-balance">₹{balance.toFixed(2)}</div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowRules(true)}
+            data-testid="open-rules-btn"
+            title="Payout rules"
+            className="chip !text-cyan-300 hover:!bg-cyan-500/20 !border-cyan-400/40 text-[11px]"
+          >
+            <HelpCircle className="w-3.5 h-3.5" /> Rules
+          </button>
+          <div className="text-right text-[11px]">
+            <div className="text-slate-400">Balance</div>
+            <div className="font-mono font-bold text-cyan-300" data-testid="game-balance">₹{balance.toFixed(2)}</div>
+          </div>
         </div>
       </div>
 
@@ -214,9 +253,9 @@ export default function RouletteGame() {
       {/* Live winners ticker (last round) */}
       <WinnersTicker winners={state?.winners || []} />
 
-      {/* Wheel + betting stake */}
-      <div className="grid md:grid-cols-[auto_1fr] gap-4 items-start">
-        <div className="card-surface p-3 md:p-4 flex flex-col items-center gap-2">
+      {/* Wheel + betting stake. Layout swaps between compact (betting) and focused (spin/result). */}
+      <div className={`grid gap-4 items-start ${isBetting ? "md:grid-cols-[auto_1fr]" : "grid-cols-1"}`}>
+        <div className={`card-surface p-3 md:p-4 flex flex-col items-center gap-2 ${!isBetting ? "md:mx-auto" : ""}`}>
           <RouletteWheel
             resultNumber={phase === "betting" ? null : state?.result_number}
             spinning={phase === "spinning"}
@@ -226,73 +265,98 @@ export default function RouletteGame() {
             <div className="text-[10px] uppercase tracking-wider text-slate-400">Round Stake</div>
             <div className="font-mono font-bold text-lg" data-testid="round-stake">₹{totalStake.toFixed(2)}</div>
           </div>
+          {!isBetting && (
+            <div className="text-[10px] uppercase tracking-widest text-slate-400 mt-1" data-testid="minimized-note">
+              Bets locked — table hidden. Reopens next round.
+            </div>
+          )}
         </div>
 
-        <div className="space-y-3">
-          <RouletteTableGrid
-            bets={bets}
-            onPlace={placeBet}
-            onNumberSelect={handleNumberSelect}
-            onRemoveBetKey={removeBetKey}
-            disabled={!isBetting || placing}
-            resultNumber={phase === "result" ? state?.result_number : null}
-            mode={mode}
-            selectedNums={selectedNums}
-          />
+        {/* Betting UI — auto-minimized when bets are locked, expanded when betting is open */}
+        <AnimatePresence initial={false}>
+          {isBetting && (
+            <motion.div
+              key="betting-ui"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="space-y-3 overflow-hidden"
+              data-testid="betting-ui-wrap"
+            >
+              <RouletteTableGrid
+                bets={bets}
+                onPlace={placeBet}
+                onNumberSelect={handleNumberSelect}
+                onRemoveBetKey={removeBetKey}
+                disabled={!isBetting}
+                resultNumber={phase === "result" ? state?.result_number : null}
+                mode={mode}
+                selectedNums={selectedNums}
+              />
 
-          {/* Bet mode selector */}
-          <BetModeSelector
-            mode={mode}
-            onChange={(m) => { setMode(m); setSelectedNums([]); }}
-            selectedNums={selectedNums}
-            onCancelSelection={() => setSelectedNums([])}
-          />
+              {/* Bet mode selector */}
+              <BetModeSelector
+                mode={mode}
+                onChange={(m) => { setMode(m); setSelectedNums([]); }}
+                selectedNums={selectedNums}
+                onCancelSelection={() => setSelectedNums([])}
+              />
 
-          {/* Chip selector */}
-          <div className="card-surface p-3 md:p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-[10px] uppercase tracking-wider text-slate-400">Chip Size</div>
-              <button
-                onClick={clearLocalOnly}
-                disabled={!isBetting || totalStake === 0}
-                data-testid="clear-chips-btn"
-                className="chip !text-slate-300 hover:!text-white text-[10px] disabled:opacity-40"
-              >
-                <RotateCcw className="w-3 h-3" /> Clear view
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {CHIP_VALUES.map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setChip(v)}
-                  data-testid={`chip-${v}`}
-                  className={`px-3 py-2 rounded-full font-heading font-bold text-xs md:text-sm border-2 transition-all ${
-                    chip === v
-                      ? "bg-yellow-400 text-black border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.5)]"
-                      : "bg-black/40 text-slate-200 border-white/15 hover:border-yellow-400/50"
-                  }`}
-                >
-                  ₹{v}
-                </button>
-              ))}
-              {!isBetting && (
-                <div className="chip !bg-red-500/10 !border-red-400/40 !text-red-300 text-[10px] uppercase ml-auto">
-                  Betting Closed
+              {/* Chip selector + Undo */}
+              <div className="card-surface p-3 md:p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-400">Chip Size</div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={undoLastBet}
+                      disabled={myBets.length === 0}
+                      data-testid="undo-bet-btn"
+                      title={myBets.length === 0 ? "No bets to undo" : `Undo last bet (${myBets.length} in stack)`}
+                      className="chip !text-yellow-300 hover:!bg-yellow-500/10 !border-yellow-400/40 text-[10px] disabled:opacity-40"
+                    >
+                      <Undo2 className="w-3 h-3" /> Undo {myBets.length > 0 ? `(${myBets.length})` : ""}
+                    </button>
+                    <button
+                      onClick={clearLocalOnly}
+                      disabled={totalStake === 0}
+                      data-testid="clear-chips-btn"
+                      className="chip !text-slate-300 hover:!text-white text-[10px] disabled:opacity-40"
+                    >
+                      <RotateCcw className="w-3 h-3" /> Clear view
+                    </button>
+                  </div>
                 </div>
-              )}
-              {isBetting && (
-                <div className="chip !bg-green-500/10 !border-green-400/40 !text-green-300 text-[10px] uppercase ml-auto">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Place Bets
+                <div className="flex flex-wrap gap-2">
+                  {CHIP_VALUES.map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setChip(v)}
+                      data-testid={`chip-${v}`}
+                      className={`px-3 py-2 rounded-full font-heading font-bold text-xs md:text-sm border-2 transition-all ${
+                        chip === v
+                          ? "bg-yellow-400 text-black border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.5)]"
+                          : "bg-black/40 text-slate-200 border-white/15 hover:border-yellow-400/50"
+                      }`}
+                    >
+                      ₹{v}
+                    </button>
+                  ))}
+                  <div className="chip !bg-green-500/10 !border-green-400/40 !text-green-300 text-[10px] uppercase ml-auto">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Place Bets
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
 
-          {/* My bets summary */}
-          <MyBetsSummary bets={myBets} />
-        </div>
+              {/* My bets summary */}
+              <MyBetsSummary bets={myBets} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* Rules modal */}
+      <RulesModal open={showRules} onClose={() => setShowRules(false)} />
 
       {/* Result popup */}
       <AnimatePresence>
@@ -454,6 +518,75 @@ function MyBetsSummary({ bets }) {
             <span className="font-mono font-bold text-yellow-200">₹{b.amount}</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function RulesModal({ open, onClose }) {
+  if (!open) return null;
+  const rules = [
+    { name: "Straight (1 number)",     example: "Any digit 0–36",            payout: "35 : 1", ret: "₹50 → ₹1,800 total" },
+    { name: "Split (2 numbers)",       example: "Adjacent pair, e.g. 0 & 1", payout: "17 : 1", ret: "₹50 → ₹900 total" },
+    { name: "Street (3 numbers)",      example: "Only 0·1·2 and 0·2·3",       payout: "11 : 1", ret: "₹50 → ₹600 total" },
+    { name: "Corner (4 numbers)",      example: "Square, e.g. 1·2·4·5",       payout: "8 : 1",  ret: "₹50 → ₹450 total" },
+    { name: "Dozen (12 numbers)",      example: "1st 12 / 2nd 12 / 3rd 12",   payout: "3 : 1",  ret: "₹50 → ₹200 total" },
+    { name: "Red / Black",             example: "Colour of winning number",   payout: "1 : 1",  ret: "₹50 → ₹100 total" },
+    { name: "Even / Odd",              example: "Parity (0 loses)",           payout: "1 : 1",  ret: "₹50 → ₹100 total" },
+    { name: "Low / High",              example: "1–18 or 19–36 (0 loses)",    payout: "1 : 1",  ret: "₹50 → ₹100 total" },
+  ];
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+      data-testid="rules-modal"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="card-surface p-5 md:p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-widest text-cyan-300">Payout Rules</div>
+            <h2 className="font-heading text-lg md:text-xl font-black">European Roulette</h2>
+          </div>
+          <button
+            onClick={onClose}
+            data-testid="close-rules-btn"
+            className="text-slate-400 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {rules.map((r) => (
+            <div key={r.name} className="flex items-start justify-between gap-3 bg-black/40 border border-white/10 rounded-lg px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-sm font-heading font-bold text-white">{r.name}</div>
+                <div className="text-[11px] text-slate-400">{r.example}</div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-xs font-mono font-bold text-yellow-300">{r.payout}</div>
+                <div className="text-[10px] text-slate-500">{r.ret}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 text-[11px] text-slate-400 space-y-1">
+          <div>• Round: <span className="text-white">20s betting</span> → <span className="text-white">10s spin</span> → <span className="text-white">1s result</span>.</div>
+          <div>• On <span className="text-emerald-300">0</span> (green), only straight-0 (and streets 0·1·2 / 0·2·3, split 0-1/0-2/0-3) win. All other outside bets lose.</div>
+          <div>• Chip on a bet? Tap it to remove. Or use the <span className="text-yellow-300">Undo</span> button to pop your last bet.</div>
+        </div>
+
+        <button
+          onClick={onClose}
+          data-testid="rules-got-it"
+          className="mt-4 w-full btn-primary text-sm py-2"
+        >
+          Got it
+        </button>
       </div>
     </div>
   );

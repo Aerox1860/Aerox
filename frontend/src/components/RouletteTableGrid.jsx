@@ -66,9 +66,8 @@ export default function RouletteTableGrid({
       <button
         key={`n-${n}`}
         onClick={() => numCellClicked(n)}
-        disabled={disabled}
         data-testid={`bet-straight-${n}`}
-        className={`relative aspect-[3/2] ${bg} ${winHighlight} ${selectedHighlight} border border-white/15 text-white font-heading font-bold text-sm md:text-base grid place-items-center transition-all disabled:opacity-70 disabled:cursor-not-allowed`}
+        className={`relative aspect-[3/2] ${bg} ${winHighlight} ${selectedHighlight} border border-white/15 text-white font-heading font-bold text-sm md:text-base grid place-items-center transition-all ${disabled ? "pointer-events-none" : ""}`}
       >
         {n}
         {totalOnCell > 0 && (
@@ -86,9 +85,8 @@ export default function RouletteTableGrid({
   const outsideBtn = (key, label, extraClass = "") => (
     <button
       onClick={() => !disabled && onPlace(key)}
-      disabled={disabled}
       data-testid={`bet-${key}`}
-      className={`relative py-3 md:py-4 border border-white/15 text-white font-heading font-bold text-xs md:text-sm hover:bg-white/5 transition-all disabled:opacity-70 disabled:cursor-not-allowed ${extraClass}`}
+      className={`relative py-3 md:py-4 border border-white/15 text-white font-heading font-bold text-xs md:text-sm hover:bg-white/5 transition-all ${disabled ? "pointer-events-none" : ""} ${extraClass}`}
     >
       {label}
       {centerChip(key)}
@@ -110,9 +108,8 @@ export default function RouletteTableGrid({
           {/* Zero (spans 3 rows on the left) */}
           <button
             onClick={() => numCellClicked(0)}
-            disabled={disabled}
             data-testid="bet-straight-0"
-            className={`relative aspect-[1/3] w-[38px] md:w-[46px] bg-emerald-600 hover:bg-emerald-500 border border-white/15 text-white font-heading font-black text-xl grid place-items-center transition-all disabled:opacity-70 disabled:cursor-not-allowed ${
+            className={`relative aspect-[1/3] w-[38px] md:w-[46px] bg-emerald-600 hover:bg-emerald-500 border border-white/15 text-white font-heading font-black text-xl grid place-items-center transition-all ${disabled ? "pointer-events-none" : ""} ${
               resultNumber === 0 ? "ring-2 ring-yellow-300" : ""
             } ${selectedNums.includes(0) ? "ring-2 ring-cyan-300 ring-inset" : ""}`}
           >
