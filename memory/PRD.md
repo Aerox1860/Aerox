@@ -41,11 +41,15 @@ AeroX Crash is a real-time aviation "crash" style multiplayer game where players
 - **Playable European Roulette engine** (2026-07-30) — `/games/roulette/:tableId` opens a real game with wooden wheel (exact 37-number European sequence), 20s betting → 8s spin → 4s result loop, ball animates to winning number, popup shows result. Bet types: straight (35:1), red/black/even/odd/low/high (1:1), dozens (3:1). Zero rule: only straight-0 wins on zero. Backend engine in `/app/backend/roulette.py` with routes `GET /api/roulette/state`, `POST /api/roulette/bet`, `GET /api/roulette/my-bets`, `GET /api/roulette/history`.
 
 ### v1.2 additions (2026-07-30)
-- Roulette split (17:1), corner (8:1), and street 0-1-2 / 1-2-3 (11:1) bet types with on-table hotspots
+- Roulette split (17:1), corner (8:1), street (11:1), and six-line (5:1) bets — full inside-bet coverage
+- All 12 in-column streets + trios 0-1-2 and 0-2-3 supported
+- 11 six-line hotspots at column-boundary bottom edges
 - Column bets (2:1) supported in the engine
-- **On-table hotspots between "0" and 1/2/3**: click yellow line for split_0_1, split_0_2, split_0_3; cyan "012" circle for trio 0-1-2; yellow line beneath "1" for street 1-2-3. Labeled fallback buttons remain in the outside row.
-- **Sequential mobile-first roulette layout**: during BETTING phase only the betting board is visible (wheel hidden); during SPINNING / RESULT phase only the wheel is visible (board hidden). Fixes cramped side-by-side layout on phones.
-- Undo Last Bet buttons prominently displayed in both views; game history modal separate from wallet transactions with 24-hour auto-cleanup.
+- **On-table hotspots**: yellow line splits for 0-1 / 0-2 / 0-3 and every adjacent-cell pair; cyan trio circles for 0-1-2 / 0-2-3; yellow lines below each column for streets; cyan "6" dots for six-lines
+- **Sequential mobile-first roulette layout**: during BETTING phase only the betting board is visible; during SPINNING / RESULT phase only the wheel is visible
+- **Compact action bar** below board: Stake · Chip picker popover (₹10/50/100/500/1000) · Undo Last Bet with count
+- Removed labeled Trio/Street outside buttons and legend text in favor of natural on-table hotspots
+- Game history modal separate from wallet transactions with 24-hour auto-cleanup
 
 ### Admin portal
 - Sidebar dashboard with live metrics + game controls

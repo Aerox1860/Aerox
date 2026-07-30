@@ -1,4 +1,8 @@
-import { colorOf, TABLE_GRID, BET_LABELS, enumerateSplitHotspots, enumerateCornerHotspots } from "@/lib/roulette";
+import {
+  colorOf, TABLE_GRID, BET_LABELS,
+  enumerateSplitHotspots, enumerateCornerHotspots,
+  enumerateStreetHotspots, enumerateSixLineHotspots,
+} from "@/lib/roulette";
 
 /**
  * European roulette betting table with direct-click hotspots for split & corner bets.
@@ -24,6 +28,8 @@ export default function RouletteTableGrid({
 }) {
   const splitHotspots = enumerateSplitHotspots();
   const cornerHotspots = enumerateCornerHotspots();
+  const streetHotspots = enumerateStreetHotspots();
+  const sixLineHotspots = enumerateSixLineHotspots();
 
   // Chip badge that overlays a number/outside button (pointer-events-none so it never
   // steals clicks — multi-click on same bet ADDS a chip).
@@ -170,12 +176,14 @@ export default function RouletteTableGrid({
                 });
               })()}
 
-              {/* Trio 0-1-2 hotspot: cyan circle at corner where 0 / "1" / "2" meet
-                  (top-left corner of "1" cell, which is bottom-left of the number grid). */}
-              {(() => {
-                const key = "street_0_1_2";
+              {/* Trios 0-1-2 (bottom-left) and 0-2-3 (top-left) — cyan circles at the two corners
+                  where the "0" cell meets the number grid. */}
+              {[
+                { key: "street_0_1_2", label: "012", y: 200 },
+                { key: "street_0_2_3", label: "023", y: 0 },
+              ].map(({ key, label, y }) => {
                 const placed = !!bets[key];
-                const cx = -4, cy = 200;
+                const cx = -4, cy = y;
                 return (
                   <g key={key}>
                     <circle
@@ -187,14 +195,14 @@ export default function RouletteTableGrid({
                       data-testid={`hotspot-${key}`}
                       onClick={() => onPlace(key)}
                     >
-                      <title>Trio 0·1·2 — 11:1</title>
+                      <title>{`Trio ${key.replace("street_", "").split("_").join("·")} — 11:1`}</title>
                     </circle>
                     {!placed && (
                       <text
                         x={cx} y={cy}
                         fill="rgba(255,255,255,0.95)" fontSize={11} fontWeight={900}
                         textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
-                      >012</text>
+                      >{label}</text>
                     )}
                     {placed && (
                       <g pointerEvents="none">
@@ -208,27 +216,25 @@ export default function RouletteTableGrid({
                     )}
                   </g>
                 );
-              })()}
+              })}
 
-              {/* Street 1-2-3 hotspot: horizontal yellow line just BELOW the "1" cell
-                  (outer bottom edge of the leftmost column). */}
-              {(() => {
-                const key = "street_1_2_3";
-                const placed = !!bets[key];
-                const cx = 50, cy = 316;
+              {/* All 12 street hotspots (3-num column bets) — thin horizontal yellow lines
+                  just BELOW the number grid. */}
+              {streetHotspots.map((h) => {
+                const placed = !!bets[h.key];
                 return (
-                  <g key={key}>
+                  <g key={h.key}>
                     <line
-                      x1={10} y1={cy} x2={90} y2={cy}
+                      x1={h.x - 40} y1={h.y} x2={h.x + 40} y2={h.y}
                       stroke="transparent" strokeWidth={26} strokeLinecap="round"
                       style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
-                      data-testid={`hotspot-${key}`}
-                      onClick={() => onPlace(key)}
+                      data-testid={`hotspot-${h.key}`}
+                      onClick={() => onPlace(h.key)}
                     >
-                      <title>Street 1·2·3 — 11:1</title>
+                      <title>{`Street ${h.nums.join(" · ")} — 11:1`}</title>
                     </line>
                     <line
-                      x1={10} y1={cy} x2={90} y2={cy}
+                      x1={h.x - 40} y1={h.y} x2={h.x + 40} y2={h.y}
                       stroke={placed ? "#facc15" : "rgba(250,204,21,0.85)"}
                       strokeWidth={placed ? 4 : 3}
                       strokeLinecap="round"
@@ -236,17 +242,55 @@ export default function RouletteTableGrid({
                     />
                     {placed && (
                       <g pointerEvents="none">
-                        <circle cx={cx} cy={cy} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
+                        <circle cx={h.x} cy={h.y} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
                         <text
-                          x={cx} y={cy}
+                          x={h.x} y={h.y}
                           fill="#000" fontSize={9} fontWeight={900}
                           textAnchor="middle" dominantBaseline="middle"
-                        >₹{bets[key]}</text>
+                        >₹{bets[h.key]}</text>
                       </g>
                     )}
                   </g>
                 );
-              })()}
+              })}
+
+              {/* All 11 six-line hotspots (6-num bets between adjacent columns) — cyan diamond dots
+                  at the boundary between two column streets, on the bottom outer edge. */}
+              {sixLineHotspots.map((h) => {
+                const placed = !!bets[h.key];
+                return (
+                  <g key={h.key}>
+                    <circle
+                      cx={h.x} cy={h.y} r={12}
+                      fill={placed ? "rgba(250,204,21,0.40)" : "rgba(34,211,238,0.15)"}
+                      stroke={placed ? "rgba(250,204,21,1)" : "rgba(34,211,238,0.85)"}
+                      strokeWidth={placed ? 2 : 1.5}
+                      style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
+                      data-testid={`hotspot-${h.key}`}
+                      onClick={() => onPlace(h.key)}
+                    >
+                      <title>{`Six-Line ${h.nums.join(" · ")} — 5:1`}</title>
+                    </circle>
+                    {!placed && (
+                      <text
+                        x={h.x} y={h.y}
+                        fill="rgba(255,255,255,0.9)" fontSize={9} fontWeight={900}
+                        textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
+                      >6</text>
+                    )}
+                    {placed && (
+                      <g pointerEvents="none">
+                        <circle cx={h.x} cy={h.y} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
+                        <text
+                          x={h.x} y={h.y}
+                          fill="#000" fontSize={9} fontWeight={900}
+                          textAnchor="middle" dominantBaseline="middle"
+                        >₹{bets[h.key]}</text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
               {/* Split hotspots — a single thin YELLOW line running along the shared edge
                   between two adjacent cells. A wider invisible line underneath keeps the click
                   target easy to hit. */}

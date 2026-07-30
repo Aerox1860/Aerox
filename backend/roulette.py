@@ -50,7 +50,31 @@ def _build_allowed_splits() -> set:
 
 
 ALLOWED_SPLITS: set = _build_allowed_splits()
-ALLOWED_STREETS: set = {(0, 1, 2), (1, 2, 3)}
+
+
+def _build_allowed_streets() -> set:
+    # All 12 in-column streets (1,2,3 | 4,5,6 | ... | 34,35,36) PLUS both 0-trios.
+    streets = {(0, 1, 2), (0, 2, 3)}
+    for k in range(1, 13):
+        streets.add((3 * k - 2, 3 * k - 1, 3 * k))
+    return streets
+
+
+ALLOWED_STREETS: set = _build_allowed_streets()
+
+
+def _build_allowed_six_lines() -> set:
+    # 11 six-line bets spanning two adjacent 3-number columns.
+    six = set()
+    for k in range(1, 12):
+        six.add((
+            3 * k - 2, 3 * k - 1, 3 * k,
+            3 * (k + 1) - 2, 3 * (k + 1) - 1, 3 * (k + 1),
+        ))
+    return six
+
+
+ALLOWED_SIX_LINES: set = _build_allowed_six_lines()
 
 
 def _build_allowed_corners() -> set:
@@ -114,6 +138,12 @@ def is_winner(bet_type: str, number: int) -> bool:
             return len(parts) == 4 and parts in ALLOWED_CORNERS and number in parts
         except ValueError:
             return False
+    if bet_type.startswith("six_line_"):
+        try:
+            parts = tuple(sorted(int(x) for x in bet_type.split("_")[2:]))
+            return len(parts) == 6 and parts in ALLOWED_SIX_LINES and number in parts
+        except ValueError:
+            return False
     if number == 0:
         return False  # all outside bets lose on zero
     if bet_type == "red":
@@ -152,6 +182,8 @@ def profit_multiplier(bet_type: str) -> int:
         return 11
     if bet_type.startswith("corner_"):
         return 8
+    if bet_type.startswith("six_line_"):
+        return 5
     if bet_type in ("dozen_1", "dozen_2", "dozen_3",
                     "column_1", "column_2", "column_3"):
         # dozens and column bets both pay 3:1 (per user's original spec).
@@ -184,6 +216,12 @@ def validate_bet_type(bet_type: str) -> bool:
         try:
             parts = tuple(sorted(int(x) for x in bet_type.split("_")[1:]))
             return len(parts) == 4 and parts in ALLOWED_CORNERS
+        except ValueError:
+            return False
+    if bet_type.startswith("six_line_"):
+        try:
+            parts = tuple(sorted(int(x) for x in bet_type.split("_")[2:]))
+            return len(parts) == 6 and parts in ALLOWED_SIX_LINES
         except ValueError:
             return False
     return False

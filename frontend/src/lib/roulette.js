@@ -47,6 +47,27 @@ function buildAllowedCorners() {
 }
 export const ALLOWED_CORNERS = buildAllowedCorners();
 
+function buildAllowedStreets() {
+  const s = new Set(["0-1-2", "0-2-3"]);
+  for (let k = 1; k <= 12; k++) {
+    s.add([3 * k - 2, 3 * k - 1, 3 * k].join("-"));
+  }
+  return s;
+}
+export const ALLOWED_STREETS = buildAllowedStreets();
+
+function buildAllowedSixLines() {
+  const s = new Set();
+  for (let k = 1; k <= 11; k++) {
+    s.add([
+      3 * k - 2, 3 * k - 1, 3 * k,
+      3 * (k + 1) - 2, 3 * (k + 1) - 1, 3 * (k + 1),
+    ].join("-"));
+  }
+  return s;
+}
+export const ALLOWED_SIX_LINES = buildAllowedSixLines();
+
 /**
  * Enumerate all clickable split hotspots as {a, b, x, y}.
  * The grid inner area uses SVG viewBox coordinates:
@@ -113,6 +134,48 @@ export function isCornerAllowed(nums) {
   return ALLOWED_CORNERS.has(key);
 }
 
+/**
+ * All 12 street hotspots — 3-number bets on each column.
+ * Rendered as short horizontal lines at the BOTTOM outer edge of the number grid
+ * (y just below the viewBox — SVG must have overflow:visible).
+ * Column k=1..12: street = (3k-2, 3k-1, 3k) — hotspot at (x = (k-1)*100 + 50, y = 316).
+ */
+export function enumerateStreetHotspots() {
+  const list = [];
+  for (let k = 1; k <= 12; k++) {
+    const nums = [3 * k - 2, 3 * k - 1, 3 * k];
+    list.push({
+      key: `street_${nums.join("_")}`,
+      nums,
+      x: (k - 1) * 100 + 50,
+      y: 316,
+    });
+  }
+  return list;
+}
+
+/**
+ * 11 six-line hotspots — 6-number bets spanning two adjacent columns.
+ * Rendered as short horizontal lines at the BOTTOM outer edge on the boundary
+ * between columns k and k+1 (x = k*100, y = 316).
+ */
+export function enumerateSixLineHotspots() {
+  const list = [];
+  for (let k = 1; k <= 11; k++) {
+    const nums = [
+      3 * k - 2, 3 * k - 1, 3 * k,
+      3 * (k + 1) - 2, 3 * (k + 1) - 1, 3 * (k + 1),
+    ];
+    list.push({
+      key: `six_line_${nums.join("_")}`,
+      nums,
+      x: k * 100,
+      y: 316,
+    });
+  }
+  return list;
+}
+
 export const CHIP_VALUES = [10, 50, 100, 500, 1000];
 
 export const BET_LABELS = {
@@ -132,6 +195,7 @@ export const PAYOUT_LABEL = {
   split: "17:1",
   street: "11:1",
   corner: "8:1",
+  six_line: "5:1",
   red: "1:1",
   black: "1:1",
   even: "1:1",
@@ -149,6 +213,7 @@ export function profitMultClient(bt) {
   if (bt.startsWith("split_")) return 17;
   if (bt.startsWith("street_")) return 11;
   if (bt.startsWith("corner_")) return 8;
+  if (bt.startsWith("six_line_")) return 5;
   if (bt.startsWith("dozen_")) return 3;
   return 1;
 }
@@ -158,6 +223,9 @@ export function isWinnerClient(bt, num) {
   if (bt.startsWith("straight_")) return parseInt(bt.split("_")[1], 10) === num;
   if (bt.startsWith("split_") || bt.startsWith("street_") || bt.startsWith("corner_")) {
     return bt.split("_").slice(1).map(Number).includes(num);
+  }
+  if (bt.startsWith("six_line_")) {
+    return bt.split("_").slice(2).map(Number).includes(num);
   }
   if (num === 0) return false;
   if (bt === "red") return colorOf(num) === "red";
@@ -178,6 +246,7 @@ export function labelForBet(bt) {
   if (bt.startsWith("split_")) return `Split ${bt.split("_").slice(1).join("·")}`;
   if (bt.startsWith("street_")) return `Street ${bt.split("_").slice(1).join("·")}`;
   if (bt.startsWith("corner_")) return `Corner ${bt.split("_").slice(1).join("·")}`;
+  if (bt.startsWith("six_line_")) return `Line ${bt.split("_").slice(2).join("·")}`;
   return BET_LABELS[bt] || bt;
 }
 

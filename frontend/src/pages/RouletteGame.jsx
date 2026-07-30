@@ -545,14 +545,15 @@ function MyBetsSummary({ bets }) {
 function RulesModal({ open, onClose }) {
   if (!open) return null;
   const rules = [
-    { name: "Straight (1 number)",     example: "Any digit 0–36",            payout: "35 : 1", ret: "₹50 → ₹1,800 total" },
-    { name: "Split (2 numbers)",       example: "Adjacent pair, e.g. 0 & 1", payout: "17 : 1", ret: "₹50 → ₹900 total" },
-    { name: "Street (3 numbers)",      example: "Only 0·1·2 and 1·2·3",       payout: "11 : 1", ret: "₹50 → ₹600 total" },
-    { name: "Corner (4 numbers)",      example: "Square, e.g. 1·2·4·5",       payout: "8 : 1",  ret: "₹50 → ₹450 total" },
-    { name: "Dozen (12 numbers)",      example: "1st 12 / 2nd 12 / 3rd 12",   payout: "3 : 1",  ret: "₹50 → ₹200 total" },
-    { name: "Red / Black",             example: "Colour of winning number",   payout: "1 : 1",  ret: "₹50 → ₹100 total" },
-    { name: "Even / Odd",              example: "Parity (0 loses)",           payout: "1 : 1",  ret: "₹50 → ₹100 total" },
-    { name: "Low / High",              example: "1–18 or 19–36 (0 loses)",    payout: "1 : 1",  ret: "₹50 → ₹100 total" },
+    { name: "Straight (1 number)",     example: "Any digit 0–36",              payout: "35 : 1", ret: "₹50 → ₹1,800 total" },
+    { name: "Split (2 numbers)",       example: "Adjacent pair, e.g. 0 & 1",   payout: "17 : 1", ret: "₹50 → ₹900 total" },
+    { name: "Street (3 numbers)",      example: "Any row: 1·2·3 … 34·35·36 (+ trios 0·1·2 / 0·2·3)", payout: "11 : 1", ret: "₹50 → ₹600 total" },
+    { name: "Corner (4 numbers)",      example: "Square, e.g. 1·2·4·5",        payout: "8 : 1",  ret: "₹50 → ₹450 total" },
+    { name: "Six-Line (6 numbers)",    example: "Two adjacent rows, e.g. 1–6", payout: "5 : 1",  ret: "₹50 → ₹300 total" },
+    { name: "Dozen (12 numbers)",      example: "1st 12 / 2nd 12 / 3rd 12",    payout: "3 : 1",  ret: "₹50 → ₹200 total" },
+    { name: "Red / Black",             example: "Colour of winning number",    payout: "1 : 1",  ret: "₹50 → ₹100 total" },
+    { name: "Even / Odd",              example: "Parity (0 loses)",            payout: "1 : 1",  ret: "₹50 → ₹100 total" },
+    { name: "Low / High",              example: "1–18 or 19–36 (0 loses)",     payout: "1 : 1",  ret: "₹50 → ₹100 total" },
   ];
   return (
     <div
