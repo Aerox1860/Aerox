@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useParams, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Timer, X, TrendingUp, History, RotateCcw } from "lucide-react";
+import { ArrowLeft, Timer, X, TrendingUp, History, RotateCcw, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { CHIP_VALUES, BET_LABELS, colorOf } from "@/lib/roulette";
+import { CHIP_VALUES, colorOf, isSplitAllowed, isCornerAllowed, profitMultClient, isWinnerClient, labelForBet } from "@/lib/roulette";
 import { rouletteTables } from "@/pages/RouletteLobby";
 import RouletteWheel from "@/components/RouletteWheel";
 import RouletteTableGrid from "@/components/RouletteTableGrid";
@@ -23,6 +23,8 @@ export default function RouletteGame() {
   const [placing, setPlacing] = useState(false);
   const [showResult, setShowResult] = useState(null); // {number, netProfit}
   const [myBets, setMyBets] = useState([]);           // current round bets from server
+  const [mode, setMode] = useState("straight");       // straight | split | corner
+  const [selectedNums, setSelectedNums] = useState([]);
   const myBetsRef = useRef([]);
   const lastResultRoundRef = useRef(null);
   const lastPhaseRef = useRef(null);
@@ -112,8 +114,73 @@ export default function RouletteGame() {
     }
   };
 
+  // In split/corner modes, collect numbers and place when the combo is valid.
+  const handleNumberSelect = (n) => {
+    if (!isBetting) return;
+    if (mode === "split") {
+      if (selectedNums.length === 0) {
+        setSelectedNums([n]);
+      } else {
+        const first = selectedNums[0];
+        if (first === n) {
+          setSelectedNums([]);
+          return;
+        }
+        if (!isSplitAllowed(first, n)) {
+          toast.error("Split must be two ADJACENT numbers on the table");
+          setSelectedNums([]);
+          return;
+        }
+        const [a, b] = [first, n].sort((x, y) => x - y);
+        placeBet(`split_${a}_${b}`);
+        setSelectedNums([]);
+      }
+    } else if (mode === "corner") {
+      const next = selectedNums.includes(n)
+        ? selectedNums.filter((x) => x !== n)
+        : [...selectedNums, n];
+      if (next.length === 4) {
+        if (!isCornerAllowed(next)) {
+          toast.error("Corner must be four numbers forming a square (e.g. 1·2·4·5)");
+          setSelectedNums([]);
+          return;
+        }
+        const sorted = [...next].sort((a, b) => a - b);
+        placeBet(`corner_${sorted.join("_")}`);
+        setSelectedNums([]);
+      } else {
+        setSelectedNums(next);
+      }
+    }
+  };
+
+  // Remove ALL bets on a given key during betting phase (one API call per matching row).
+  const removeBetKey = async (betKey) => {
+    if (!isBetting || placing) return;
+    const matching = myBets.filter((b) => b.bet_type === betKey);
+    if (matching.length === 0) return;
+    setPlacing(true);
+    try {
+      for (const m of matching) {
+        await api.delete(`/roulette/bet/${m.id}`);
+      }
+      setBets((prev) => {
+        const next = { ...prev };
+        delete next[betKey];
+        return next;
+      });
+      refresh?.();
+      loadMyBets();
+      toast.success(`Removed ${matching.length > 1 ? matching.length + " bets" : "bet"}`);
+    } catch (e) {
+      toast.error(formatApiError(e));
+    } finally {
+      setPlacing(false);
+    }
+  };
+
   const clearLocalOnly = () => {
-    // (bets already placed on server can't be undone — this just resets the chip stack UI)
+    setSelectedNums([]);
     setBets({});
   };
 
@@ -144,6 +211,9 @@ export default function RouletteGame() {
         <RecentResults history={state?.history || []} />
       </div>
 
+      {/* Live winners ticker (last round) */}
+      <WinnersTicker winners={state?.winners || []} />
+
       {/* Wheel + betting stake */}
       <div className="grid md:grid-cols-[auto_1fr] gap-4 items-start">
         <div className="card-surface p-3 md:p-4 flex flex-col items-center gap-2">
@@ -162,8 +232,20 @@ export default function RouletteGame() {
           <RouletteTableGrid
             bets={bets}
             onPlace={placeBet}
+            onNumberSelect={handleNumberSelect}
+            onRemoveBetKey={removeBetKey}
             disabled={!isBetting || placing}
             resultNumber={phase === "result" ? state?.result_number : null}
+            mode={mode}
+            selectedNums={selectedNums}
+          />
+
+          {/* Bet mode selector */}
+          <BetModeSelector
+            mode={mode}
+            onChange={(m) => { setMode(m); setSelectedNums([]); }}
+            selectedNums={selectedNums}
+            onCancelSelection={() => setSelectedNums([])}
           />
 
           {/* Chip selector */}
@@ -377,29 +459,82 @@ function MyBetsSummary({ bets }) {
   );
 }
 
-function labelForBet(bt) {
-  if (bt.startsWith("straight_")) return `#${bt.split("_")[1]}`;
-  return BET_LABELS[bt] || bt;
+function BetModeSelector({ mode, onChange, selectedNums, onCancelSelection }) {
+  const modes = [
+    { key: "straight", label: "Straight", payout: "35:1" },
+    { key: "split", label: "Split", payout: "17:1" },
+    { key: "corner", label: "Corner", payout: "8:1" },
+  ];
+  const hint =
+    mode === "split"
+      ? selectedNums.length === 0
+        ? "Split mode: tap the 1st number, then an adjacent 2nd."
+        : `Split mode: tap an adjacent number to #${selectedNums[0]}.`
+      : mode === "corner"
+      ? `Corner mode: tap 4 numbers forming a square (${selectedNums.length}/4)`
+      : "Straight mode: tap any number to place a chip.";
+  return (
+    <div className="card-surface p-3 md:p-4" data-testid="bet-mode-selector">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] uppercase tracking-wider text-slate-400">Bet Mode</div>
+        {selectedNums.length > 0 && (
+          <button
+            onClick={onCancelSelection}
+            data-testid="cancel-selection"
+            className="chip !bg-red-500/10 !border-red-400/40 !text-red-300 text-[10px] uppercase"
+          >
+            <X className="w-3 h-3" /> Cancel selection
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {modes.map((m) => (
+          <button
+            key={m.key}
+            onClick={() => onChange(m.key)}
+            data-testid={`mode-${m.key}`}
+            className={`px-3 py-2 rounded-full font-heading font-bold text-xs md:text-sm border-2 transition-all ${
+              mode === m.key
+                ? "bg-cyan-400 text-black border-cyan-200 shadow-[0_0_15px_rgba(34,211,238,0.5)]"
+                : "bg-black/40 text-slate-200 border-white/15 hover:border-cyan-400/50"
+            }`}
+          >
+            {m.label} · {m.payout}
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 text-[11px] text-slate-400" data-testid="mode-hint">{hint}</div>
+    </div>
+  );
 }
 
-// Client-side mirror of backend rules (used to compute popup profit instantly).
-function isWinnerClient(bt, num) {
-  if (bt.startsWith("straight_")) return parseInt(bt.split("_")[1], 10) === num;
-  if (num === 0) return false;
-  if (bt === "red") return colorOf(num) === "red";
-  if (bt === "black") return colorOf(num) === "black";
-  if (bt === "even") return num % 2 === 0;
-  if (bt === "odd") return num % 2 === 1;
-  if (bt === "low") return num >= 1 && num <= 18;
-  if (bt === "high") return num >= 19 && num <= 36;
-  if (bt === "dozen_1") return num >= 1 && num <= 12;
-  if (bt === "dozen_2") return num >= 13 && num <= 24;
-  if (bt === "dozen_3") return num >= 25 && num <= 36;
-  return false;
-}
-
-function profitMultClient(bt) {
-  if (bt.startsWith("straight_")) return 35;
-  if (bt.startsWith("dozen_")) return 3;
-  return 1;
+function WinnersTicker({ winners = [] }) {
+  if (winners.length === 0) return null;
+  return (
+    <div className="card-surface p-3" data-testid="winners-ticker">
+      <div className="flex items-center gap-1 mb-2">
+        <Trophy className="w-3.5 h-3.5 text-yellow-300" />
+        <div className="text-[10px] uppercase tracking-wider text-yellow-300 font-bold">
+          Last Round Winners
+        </div>
+      </div>
+      <div className="flex gap-2 overflow-x-auto">
+        {winners.slice(0, 8).map((w, i) => (
+          <div
+            key={`${w.round_id}-${w.name}-${i}`}
+            data-testid={`winner-item-${i}`}
+            className="shrink-0 flex items-center gap-2 bg-black/40 border border-yellow-400/30 rounded-lg px-3 py-1.5"
+          >
+            <span className="w-2 h-2 rounded-full bg-yellow-300 animate-pulse" />
+            <div>
+              <div className="text-[11px] font-bold text-white truncate max-w-[110px]">{w.name}</div>
+              <div className="text-[10px] text-yellow-200 font-mono font-bold">
+                +₹{Number(w.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
