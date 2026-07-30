@@ -50,7 +50,7 @@ def _build_allowed_splits() -> set:
 
 
 ALLOWED_SPLITS: set = _build_allowed_splits()
-ALLOWED_STREETS: set = {(0, 1, 2), (0, 2, 3)}
+ALLOWED_STREETS: set = {(0, 1, 2), (1, 2, 3)}
 
 
 def _build_allowed_corners() -> set:

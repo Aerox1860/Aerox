@@ -551,7 +551,7 @@ function RulesModal({ open, onClose }) {
   const rules = [
     { name: "Straight (1 number)",     example: "Any digit 0–36",            payout: "35 : 1", ret: "₹50 → ₹1,800 total" },
     { name: "Split (2 numbers)",       example: "Adjacent pair, e.g. 0 & 1", payout: "17 : 1", ret: "₹50 → ₹900 total" },
-    { name: "Street (3 numbers)",      example: "Only 0·1·2 and 0·2·3",       payout: "11 : 1", ret: "₹50 → ₹600 total" },
+    { name: "Street (3 numbers)",      example: "Only 0·1·2 and 1·2·3",       payout: "11 : 1", ret: "₹50 → ₹600 total" },
     { name: "Corner (4 numbers)",      example: "Square, e.g. 1·2·4·5",       payout: "8 : 1",  ret: "₹50 → ₹450 total" },
     { name: "Dozen (12 numbers)",      example: "1st 12 / 2nd 12 / 3rd 12",   payout: "3 : 1",  ret: "₹50 → ₹200 total" },
     { name: "Red / Black",             example: "Colour of winning number",   payout: "1 : 1",  ret: "₹50 → ₹100 total" },
@@ -599,7 +599,7 @@ function RulesModal({ open, onClose }) {
 
         <div className="mt-4 text-[11px] text-slate-400 space-y-1">
           <div>• Round: <span className="text-white">20s betting</span> → <span className="text-white">10s spin</span> → <span className="text-white">1s result</span>.</div>
-          <div>• On <span className="text-emerald-300">0</span> (green), only straight-0 (and streets 0·1·2 / 0·2·3, split 0-1/0-2/0-3) win. All other outside bets lose.</div>
+          <div>• On <span className="text-emerald-300">0</span> (green), only straight-0 (and street 0·1·2, split 0-1/0-2/0-3) win. All other outside bets lose.</div>
           <div>• Chip on a bet? Tap it to remove. Or use the <span className="text-yellow-300">Undo</span> button to pop your last bet.</div>
         </div>
 

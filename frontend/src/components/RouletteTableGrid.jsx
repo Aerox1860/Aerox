@@ -143,12 +143,12 @@ export default function RouletteTableGrid({
           </div>
         </div>
 
-        {/* Special Street buttons (0-1-2 and 0-2-3) */}
+        {/* Special Street buttons (0-1-2 and 1-2-3) */}
         <div className="mt-1 flex gap-1">
           <div className="w-[38px] md:w-[46px]" />
           <div className="flex-1 grid grid-cols-2 gap-1">
             {outsideBtn("street_0_1_2", "Street 0·1·2 · 11:1", "!bg-emerald-900/40 hover:!bg-emerald-800/50")}
-            {outsideBtn("street_0_2_3", "Street 0·2·3 · 11:1", "!bg-emerald-900/40 hover:!bg-emerald-800/50")}
+            {outsideBtn("street_1_2_3", "Street 1·2·3 · 11:1", "!bg-emerald-900/40 hover:!bg-emerald-800/50")}
           </div>
         </div>
 
