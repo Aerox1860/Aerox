@@ -16,7 +16,7 @@ const games = [
   },
   { id: "mines", name: "Mines", tagline: "Uncover gems. Avoid bombs.", icon: Bomb, gradient: "from-orange-500 to-red-600", tags: ["Skill"] },
   { id: "dice", name: "Dice", tagline: "Roll for glory.", icon: Dices, gradient: "from-fuchsia-500 to-purple-600", tags: ["Classic"] },
-  { id: "roulette", name: "Roulette", tagline: "Red or Black?", icon: Disc, gradient: "from-red-500 to-rose-700", tags: ["Table"] },
+  { id: "roulette", name: "Roulette", tagline: "7 live tables. Red or Black?", icon: Disc, to: "/games/roulette", status: "live", gradient: "from-red-500 to-rose-700", accent: "text-red-300", tags: ["Live", "Tables"] },
   { id: "plinko", name: "Plinko", tagline: "Drop the ball, chase the peak.", icon: TrendingDown, gradient: "from-emerald-400 to-teal-600", tags: ["Casual"] },
   { id: "wheel", name: "Wheel of Fortune", tagline: "Spin for the multiplier.", icon: CircleDot, gradient: "from-amber-400 to-yellow-600", tags: ["Fun"] },
   { id: "slots", name: "Neon Slots", tagline: "3-reel arcade classic.", icon: Grid3x3, gradient: "from-pink-500 to-fuchsia-600", tags: ["Reels"] },
