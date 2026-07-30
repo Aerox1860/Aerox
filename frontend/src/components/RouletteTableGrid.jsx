@@ -113,13 +113,140 @@ export default function RouletteTableGrid({
               {TABLE_GRID.flat().map((n) => numCell(n))}
             </div>
 
-            {/* SVG hotspot overlay — click BETWEEN cells for splits & corners */}
+            {/* SVG hotspot overlay — click BETWEEN cells for splits & corners.
+                overflow:visible lets hotspots on the LEFT edge (0-cell splits) and BOTTOM edge
+                (street 1-2-3) extend beyond the SVG viewBox into the seam. */}
             <svg
               className="absolute inset-0 w-full h-full"
               viewBox="0 0 1200 300"
               preserveAspectRatio="none"
-              style={{ pointerEvents: "none" }}
+              style={{ pointerEvents: "none", overflow: "visible" }}
             >
+              {/* 0-CELL adjacency hotspots (rendered here so they overlap the seam
+                  between the "0" button and the number grid) */}
+              {(() => {
+                // Split between 0 and each of 1, 2, 3 — vertical yellow line at grid's left edge.
+                const zeroSplits = [
+                  { key: "split_0_1", nums: [0, 1], y: 250 }, // bottom row ("1")
+                  { key: "split_0_2", nums: [0, 2], y: 150 }, // middle row ("2")
+                  { key: "split_0_3", nums: [0, 3], y: 50  }, // top row ("3")
+                ];
+                return zeroSplits.map((h) => {
+                  const placed = !!bets[h.key];
+                  return (
+                    <g key={h.key}>
+                      {/* Fat invisible hit line, extends into the seam gap */}
+                      <line
+                        x1={-4} y1={h.y - 30} x2={-4} y2={h.y + 30}
+                        stroke="transparent"
+                        strokeWidth={22}
+                        strokeLinecap="round"
+                        style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
+                        data-testid={`hotspot-${h.key}`}
+                        onClick={() => onPlace(h.key)}
+                      >
+                        <title>{`Split ${h.nums.join(" · ")} — 17:1`}</title>
+                      </line>
+                      {/* Visible thin yellow line */}
+                      <line
+                        x1={-4} y1={h.y - 30} x2={-4} y2={h.y + 30}
+                        stroke={placed ? "#facc15" : "rgba(250,204,21,0.85)"}
+                        strokeWidth={placed ? 4 : 2.5}
+                        strokeLinecap="round"
+                        pointerEvents="none"
+                      />
+                      {placed && (
+                        <g pointerEvents="none">
+                          <circle cx={-4} cy={h.y} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
+                          <text
+                            x={-4} y={h.y}
+                            fill="#000" fontSize={9} fontWeight={900}
+                            textAnchor="middle" dominantBaseline="middle"
+                          >₹{bets[h.key]}</text>
+                        </g>
+                      )}
+                    </g>
+                  );
+                });
+              })()}
+
+              {/* Trio 0-1-2 hotspot: cyan circle at corner where 0 / "1" / "2" meet
+                  (top-left corner of "1" cell, which is bottom-left of the number grid). */}
+              {(() => {
+                const key = "street_0_1_2";
+                const placed = !!bets[key];
+                const cx = -4, cy = 200;
+                return (
+                  <g key={key}>
+                    <circle
+                      cx={cx} cy={cy} r={16}
+                      fill={placed ? "rgba(250,204,21,0.40)" : "rgba(34,211,238,0.18)"}
+                      stroke={placed ? "rgba(250,204,21,1)" : "rgba(34,211,238,0.9)"}
+                      strokeWidth={placed ? 2 : 1.8}
+                      style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
+                      data-testid={`hotspot-${key}`}
+                      onClick={() => onPlace(key)}
+                    >
+                      <title>Trio 0·1·2 — 11:1</title>
+                    </circle>
+                    {!placed && (
+                      <text
+                        x={cx} y={cy}
+                        fill="rgba(255,255,255,0.95)" fontSize={11} fontWeight={900}
+                        textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
+                      >012</text>
+                    )}
+                    {placed && (
+                      <g pointerEvents="none">
+                        <circle cx={cx} cy={cy} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
+                        <text
+                          x={cx} y={cy}
+                          fill="#000" fontSize={9} fontWeight={900}
+                          textAnchor="middle" dominantBaseline="middle"
+                        >₹{bets[key]}</text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })()}
+
+              {/* Street 1-2-3 hotspot: horizontal yellow line just BELOW the "1" cell
+                  (outer bottom edge of the leftmost column). */}
+              {(() => {
+                const key = "street_1_2_3";
+                const placed = !!bets[key];
+                const cx = 50, cy = 316;
+                return (
+                  <g key={key}>
+                    <line
+                      x1={10} y1={cy} x2={90} y2={cy}
+                      stroke="transparent" strokeWidth={26} strokeLinecap="round"
+                      style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
+                      data-testid={`hotspot-${key}`}
+                      onClick={() => onPlace(key)}
+                    >
+                      <title>Street 1·2·3 — 11:1</title>
+                    </line>
+                    <line
+                      x1={10} y1={cy} x2={90} y2={cy}
+                      stroke={placed ? "#facc15" : "rgba(250,204,21,0.85)"}
+                      strokeWidth={placed ? 4 : 3}
+                      strokeLinecap="round"
+                      pointerEvents="none"
+                    />
+                    {placed && (
+                      <g pointerEvents="none">
+                        <circle cx={cx} cy={cy} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
+                        <text
+                          x={cx} y={cy}
+                          fill="#000" fontSize={9} fontWeight={900}
+                          textAnchor="middle" dominantBaseline="middle"
+                        >₹{bets[key]}</text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })()}
               {/* Split hotspots — a single thin YELLOW line running along the shared edge
                   between two adjacent cells. A wider invisible line underneath keeps the click
                   target easy to hit. */}
@@ -234,6 +361,9 @@ export default function RouletteTableGrid({
           </div>
         </div>
 
+        {/* Extra bottom margin to make room for the street 1-2-3 hotspot rendered just below the "1" cell. */}
+        <div className="h-2" aria-hidden />
+
         {/* Dozens row */}
         <div className="mt-1 flex gap-1">
           <div className="w-[38px] md:w-[46px]" />
@@ -244,11 +374,12 @@ export default function RouletteTableGrid({
           </div>
         </div>
 
-        {/* Special Street buttons (0-1-2 and 1-2-3) */}
+        {/* Special Street buttons kept as an accessible fallback for users who prefer
+            labeled buttons over on-table hotspots. */}
         <div className="mt-1 flex gap-1">
           <div className="w-[38px] md:w-[46px]" />
           <div className="flex-1 grid grid-cols-2 gap-1">
-            {outsideBtn("street_0_1_2", "Street 0·1·2 · 11:1", "!bg-emerald-900/40 hover:!bg-emerald-800/50")}
+            {outsideBtn("street_0_1_2", "Trio 0·1·2 · 11:1", "!bg-emerald-900/40 hover:!bg-emerald-800/50")}
             {outsideBtn("street_1_2_3", "Street 1·2·3 · 11:1", "!bg-emerald-900/40 hover:!bg-emerald-800/50")}
           </div>
         </div>
@@ -286,7 +417,9 @@ export default function RouletteTableGrid({
           <span className="mx-1 inline-block w-4 h-1 rounded bg-yellow-400/60 align-middle"></span>
           yellow line between 2 numbers = <span className="text-yellow-300">Split 17:1</span> · Tap the
           <span className="mx-1 inline-block w-2.5 h-2.5 rounded-full bg-cyan-400/40 border border-cyan-300/80 align-middle"></span>
-          cyan corner + = <span className="text-yellow-300">Corner 8:1</span>
+          cyan corner = <span className="text-yellow-300">Corner 8:1</span> · Tap the
+          <span className="mx-1 inline-block w-2.5 h-2.5 rounded-full bg-cyan-400/40 border border-cyan-300/80 align-middle text-[7px] text-white font-black leading-none">012</span>
+          trio circle or bottom line of &ldquo;1&rdquo; = <span className="text-yellow-300">Street 11:1</span>
         </div>
       </div>
     </div>

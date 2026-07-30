@@ -72,7 +72,8 @@ MIN_BET = 10.0
 MAX_BET = 200000.0
 
 VALID_OUTSIDE = {"red", "black", "even", "odd", "low", "high",
-                 "dozen_1", "dozen_2", "dozen_3"}
+                 "dozen_1", "dozen_2", "dozen_3",
+                 "column_1", "column_2", "column_3"}
 
 
 def color_of(n: int) -> str:
@@ -133,6 +134,12 @@ def is_winner(bet_type: str, number: int) -> bool:
         return 13 <= number <= 24
     if bet_type == "dozen_3":
         return 25 <= number <= 36
+    if bet_type == "column_1":  # bottom row on horizontal table = leftmost in vertical layout: 1,4,7,...,34
+        return number % 3 == 1
+    if bet_type == "column_2":  # middle row/column: 2,5,8,...,35
+        return number % 3 == 2
+    if bet_type == "column_3":  # top row/right column: 3,6,9,...,36
+        return number % 3 == 0
     return False
 
 
@@ -145,7 +152,9 @@ def profit_multiplier(bet_type: str) -> int:
         return 11
     if bet_type.startswith("corner_"):
         return 8
-    if bet_type in ("dozen_1", "dozen_2", "dozen_3"):
+    if bet_type in ("dozen_1", "dozen_2", "dozen_3",
+                    "column_1", "column_2", "column_3"):
+        # dozens and column bets both pay 3:1 (per user's original spec).
         return 3
     return 1  # red/black/even/odd/low/high
 
