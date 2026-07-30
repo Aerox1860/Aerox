@@ -47,6 +47,61 @@ function buildAllowedCorners() {
 }
 export const ALLOWED_CORNERS = buildAllowedCorners();
 
+/**
+ * Enumerate all clickable split hotspots as {a, b, x, y}.
+ * The grid inner area uses SVG viewBox coordinates:
+ *   • 12 columns × 3 rows of 100×100 unit cells, top-left = (0,0), bottom-right = (1200,300).
+ *   • Number layout: row-top = 3k (y = 0-100), row-mid = 3k-1 (y = 100-200), row-bot = 3k-2 (y = 200-300),
+ *     for column k=1..12 (x = (k-1)*100 to k*100).
+ * Also enumerates the 3 special "0-splits" as x-negative left of column 1.
+ */
+export function enumerateSplitHotspots() {
+  const list = [];
+  // Vertical splits (within one column of 3 cells) — hotspot straddles horizontal border between rows
+  for (let k = 1; k <= 12; k++) {
+    const cx = (k - 1) * 100 + 50;
+    // between row-top (3k) and row-mid (3k-1): y = 100
+    list.push({ key: `split_${3 * k - 1}_${3 * k}`, nums: [3 * k - 1, 3 * k], x: cx, y: 100 });
+    // between row-mid (3k-1) and row-bot (3k-2): y = 200
+    list.push({ key: `split_${3 * k - 2}_${3 * k - 1}`, nums: [3 * k - 2, 3 * k - 1], x: cx, y: 200 });
+  }
+  // Horizontal splits (between adjacent columns) — hotspot straddles vertical border
+  for (let k = 1; k <= 11; k++) {
+    const cx = k * 100;
+    list.push({ key: `split_${3 * k - 2}_${3 * (k + 1) - 2}`, nums: [3 * k - 2, 3 * (k + 1) - 2], x: cx, y: 250 });
+    list.push({ key: `split_${3 * k - 1}_${3 * (k + 1) - 1}`, nums: [3 * k - 1, 3 * (k + 1) - 1], x: cx, y: 150 });
+    list.push({ key: `split_${3 * k}_${3 * (k + 1)}`, nums: [3 * k, 3 * (k + 1)], x: cx, y: 50 });
+  }
+  return list;
+}
+
+/**
+ * Enumerate corner hotspots at the intersection of 4 adjacent cells.
+ * Corner center = (col boundary, row boundary) in viewBox units.
+ */
+export function enumerateCornerHotspots() {
+  const list = [];
+  for (let k = 1; k <= 11; k++) {
+    const cx = k * 100;
+    // Corner among row-bot(k), row-mid(k), row-bot(k+1), row-mid(k+1) — center y = 200
+    list.push({
+      key: `corner_${3 * k - 2}_${3 * k - 1}_${3 * (k + 1) - 2}_${3 * (k + 1) - 1}`,
+      nums: [3 * k - 2, 3 * k - 1, 3 * (k + 1) - 2, 3 * (k + 1) - 1].sort((a, b) => a - b),
+      x: cx,
+      y: 200,
+    });
+    // Corner among row-mid, row-top of both columns — center y = 100
+    list.push({
+      key: `corner_${3 * k - 1}_${3 * k}_${3 * (k + 1) - 1}_${3 * (k + 1)}`,
+      nums: [3 * k - 1, 3 * k, 3 * (k + 1) - 1, 3 * (k + 1)].sort((a, b) => a - b),
+      x: cx,
+      y: 100,
+    });
+  }
+  return list;
+}
+
+
 export function isSplitAllowed(a, b) {
   const [x, y] = a < b ? [a, b] : [b, a];
   return ALLOWED_SPLITS.has(`${x}-${y}`);

@@ -5,7 +5,7 @@ import { ArrowLeft, Timer, X, TrendingUp, History, RotateCcw, Trophy, Undo2, Hel
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { CHIP_VALUES, colorOf, isSplitAllowed, isCornerAllowed, profitMultClient, isWinnerClient, labelForBet } from "@/lib/roulette";
+import { CHIP_VALUES, colorOf, profitMultClient, isWinnerClient, labelForBet } from "@/lib/roulette";
 import { rouletteTables } from "@/pages/RouletteLobby";
 import RouletteWheel from "@/components/RouletteWheel";
 import RouletteTableGrid from "@/components/RouletteTableGrid";
@@ -22,8 +22,6 @@ export default function RouletteGame() {
   const [chip, setChip] = useState(50);
   const [showResult, setShowResult] = useState(null); // {number, netProfit}
   const [myBets, setMyBets] = useState([]);           // current round bets from server
-  const [mode, setMode] = useState("straight");       // straight | split | corner
-  const [selectedNums, setSelectedNums] = useState([]);
   const [showRules, setShowRules] = useState(false);
   const myBetsRef = useRef([]);
   const lastResultRoundRef = useRef(null);
@@ -130,45 +128,7 @@ export default function RouletteGame() {
     }
   };
 
-  // In split/corner modes, collect numbers and place when the combo is valid.
-  const handleNumberSelect = (n) => {
-    if (!isBetting) return;
-    if (mode === "split") {
-      if (selectedNums.length === 0) {
-        setSelectedNums([n]);
-      } else {
-        const first = selectedNums[0];
-        if (first === n) {
-          setSelectedNums([]);
-          return;
-        }
-        if (!isSplitAllowed(first, n)) {
-          toast.error("Split must be two ADJACENT numbers on the table");
-          setSelectedNums([]);
-          return;
-        }
-        const [a, b] = [first, n].sort((x, y) => x - y);
-        placeBet(`split_${a}_${b}`);
-        setSelectedNums([]);
-      }
-    } else if (mode === "corner") {
-      const next = selectedNums.includes(n)
-        ? selectedNums.filter((x) => x !== n)
-        : [...selectedNums, n];
-      if (next.length === 4) {
-        if (!isCornerAllowed(next)) {
-          toast.error("Corner must be four numbers forming a square (e.g. 1·2·4·5)");
-          setSelectedNums([]);
-          return;
-        }
-        const sorted = [...next].sort((a, b) => a - b);
-        placeBet(`corner_${sorted.join("_")}`);
-        setSelectedNums([]);
-      } else {
-        setSelectedNums(next);
-      }
-    }
-  };
+  // Split/corner bets are placed via SVG hotspots on the table (handled by RouletteTableGrid).
 
   // Undo the LAST placed bet in this round (LIFO stack — removes 10 → 9 → 8 → …).
   const undoLastBet = async () => {
@@ -226,7 +186,6 @@ export default function RouletteGame() {
   };
 
   const clearLocalOnly = () => {
-    setSelectedNums([]);
     setBets({});
   };
 
@@ -321,20 +280,11 @@ export default function RouletteGame() {
               <RouletteTableGrid
                 bets={bets}
                 onPlace={placeBet}
-                onNumberSelect={handleNumberSelect}
                 disabled={!isBetting}
                 resultNumber={phase === "result" ? state?.result_number : null}
-                mode={mode}
-                selectedNums={selectedNums}
               />
 
-              {/* Bet mode selector */}
-              <BetModeSelector
-                mode={mode}
-                onChange={(m) => { setMode(m); setSelectedNums([]); }}
-                selectedNums={selectedNums}
-                onCancelSelection={() => setSelectedNums([])}
-              />
+              {/* Bet mode selector removed — user clicks between cells directly for splits/corners. */}
 
               {/* Chip selector + Undo */}
               <div className="card-surface p-3 md:p-4">
@@ -631,54 +581,7 @@ function RulesModal({ open, onClose }) {
   );
 }
 
-function BetModeSelector({ mode, onChange, selectedNums, onCancelSelection }) {
-  const modes = [
-    { key: "straight", label: "Straight", payout: "35:1" },
-    { key: "split", label: "Split", payout: "17:1" },
-    { key: "corner", label: "Corner", payout: "8:1" },
-  ];
-  const hint =
-    mode === "split"
-      ? selectedNums.length === 0
-        ? "Split mode: tap the 1st number, then an adjacent 2nd."
-        : `Split mode: tap an adjacent number to #${selectedNums[0]}.`
-      : mode === "corner"
-      ? `Corner mode: tap 4 numbers forming a square (${selectedNums.length}/4)`
-      : "Straight mode: tap any number to place a chip.";
-  return (
-    <div className="card-surface p-3 md:p-4" data-testid="bet-mode-selector">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] uppercase tracking-wider text-slate-400">Bet Mode</div>
-        {selectedNums.length > 0 && (
-          <button
-            onClick={onCancelSelection}
-            data-testid="cancel-selection"
-            className="chip !bg-red-500/10 !border-red-400/40 !text-red-300 text-[10px] uppercase"
-          >
-            <X className="w-3 h-3" /> Cancel selection
-          </button>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {modes.map((m) => (
-          <button
-            key={m.key}
-            onClick={() => onChange(m.key)}
-            data-testid={`mode-${m.key}`}
-            className={`px-3 py-2 rounded-full font-heading font-bold text-xs md:text-sm border-2 transition-all ${
-              mode === m.key
-                ? "bg-cyan-400 text-black border-cyan-200 shadow-[0_0_15px_rgba(34,211,238,0.5)]"
-                : "bg-black/40 text-slate-200 border-white/15 hover:border-cyan-400/50"
-            }`}
-          >
-            {m.label} · {m.payout}
-          </button>
-        ))}
-      </div>
-      <div className="mt-2 text-[11px] text-slate-400" data-testid="mode-hint">{hint}</div>
-    </div>
-  );
-}
+function BetModeSelector() { return null; /* deprecated — replaced by SVG hotspot clicks */ }
 
 function WinnersTicker({ winners = [] }) {
   if (winners.length === 0) return null;

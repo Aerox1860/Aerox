@@ -1,30 +1,33 @@
-import { colorOf, TABLE_GRID, BET_LABELS } from "@/lib/roulette";
+import { colorOf, TABLE_GRID, BET_LABELS, enumerateSplitHotspots, enumerateCornerHotspots } from "@/lib/roulette";
 
 /**
- * European roulette betting table with support for straight / split / street / corner bets.
+ * European roulette betting table with direct-click hotspots for split & corner bets.
+ *
+ * Layout (viewBox coordinates):
+ *   • Number grid inner area = 12 columns × 3 rows of 100×100 units → 1200×300.
+ *   • Split hotspots: small rects straddling the boundary between two adjacent cells.
+ *   • Corner hotspots: small circles at the intersection of 4 adjacent cells.
+ *
+ * The user clicks directly on the boundary/intersection — no mode switching, no multi-tap.
  *
  * Props:
- *  - bets: { [betKey]: totalAmount }              e.g. { straight_5: 20, red: 10 }
- *  - onPlace: (betKey: string) => void            place a bet on a fully-formed bet key
- *  - onNumberSelect: (n: number) => void          when in split/corner mode: register number pick
- *  - onRemoveBetKey: (betKey: string) => void     remove all bets on a key (called on chip click)
+ *  - bets: { [betKey]: totalAmount }
+ *  - onPlace: (betKey: string) => void
  *  - disabled: boolean
- *  - resultNumber: number | null                  highlight winning cell during result phase
- *  - mode: "straight" | "split" | "corner"        current click mode
- *  - selectedNums: number[]                       numbers currently being combined in split/corner mode
+ *  - resultNumber: number | null
  */
 export default function RouletteTableGrid({
   bets = {},
   onPlace,
-  onNumberSelect,
   disabled = false,
   resultNumber = null,
-  mode = "straight",
-  selectedNums = [],
 }) {
-  // Chip is display-only — pointer-events-none so clicks pass THROUGH to the underlying
-  // button (allowing multiple bets on Red/Black/Even/Odd/etc.). Removal is via Undo.
-  const centerChip = (key) => {
+  const splitHotspots = enumerateSplitHotspots();
+  const cornerHotspots = enumerateCornerHotspots();
+
+  // Chip badge that overlays a number/outside button (pointer-events-none so it never
+  // steals clicks — multi-click on same bet ADDS a chip).
+  const chipOverlay = (key) => {
     const v = bets[key];
     if (!v) return null;
     return (
@@ -39,12 +42,6 @@ export default function RouletteTableGrid({
     );
   };
 
-  const numCellClicked = (n) => {
-    if (disabled) return;
-    if (mode === "straight") onPlace(`straight_${n}`);
-    else onNumberSelect?.(n);
-  };
-
   const numCell = (n) => {
     const c = colorOf(n);
     const bg =
@@ -54,26 +51,15 @@ export default function RouletteTableGrid({
         ? "bg-red-600 hover:bg-red-500"
         : "bg-neutral-900 hover:bg-neutral-800";
     const winHighlight = resultNumber === n ? "ring-2 ring-yellow-300" : "";
-    const selectedHighlight = selectedNums.includes(n) ? "ring-2 ring-cyan-300 ring-inset" : "";
-    // Total on this cell = straight + any split/street/corner containing n
-    const chipsOnCell = Object.keys(bets).filter((k) => keyContainsNumber(k, n));
-    const totalOnCell = chipsOnCell.reduce((s, k) => s + (bets[k] || 0), 0);
     return (
       <button
         key={`n-${n}`}
-        onClick={() => numCellClicked(n)}
+        onClick={() => !disabled && onPlace(`straight_${n}`)}
         data-testid={`bet-straight-${n}`}
-        className={`relative aspect-[3/2] ${bg} ${winHighlight} ${selectedHighlight} border border-white/15 text-white font-heading font-bold text-sm md:text-base grid place-items-center transition-all ${disabled ? "pointer-events-none" : ""}`}
+        className={`relative aspect-[3/2] ${bg} ${winHighlight} border border-white/15 text-white font-heading font-bold text-sm md:text-base grid place-items-center transition-all ${disabled ? "pointer-events-none" : ""}`}
       >
         {n}
-        {totalOnCell > 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="min-w-[26px] h-[20px] px-1.5 rounded-full bg-yellow-400 text-black text-[10px] font-black grid place-items-center border-2 border-yellow-700 shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
-                 data-testid={`bet-total-${n}`}>
-              ₹{totalOnCell}
-            </div>
-          </div>
-        )}
+        {chipOverlay(`straight_${n}`)}
       </button>
     );
   };
@@ -85,7 +71,7 @@ export default function RouletteTableGrid({
       className={`relative py-3 md:py-4 border border-white/15 text-white font-heading font-bold text-xs md:text-sm hover:bg-white/5 transition-all ${disabled ? "pointer-events-none" : ""} ${extraClass}`}
     >
       {label}
-      {centerChip(key)}
+      {chipOverlay(key)}
     </button>
   );
 
@@ -99,37 +85,120 @@ export default function RouletteTableGrid({
           boxShadow: "inset 0 0 30px rgba(0,0,0,0.55)",
         }}
       >
-        {/* Numbers area: 0 column + 3×12 grid */}
+        {/* Numbers area: 0 column + 3×12 grid + SVG hotspot overlay */}
         <div className="flex gap-1">
           {/* Zero (spans 3 rows on the left) */}
           <button
-            onClick={() => numCellClicked(0)}
+            onClick={() => !disabled && onPlace("straight_0")}
             data-testid="bet-straight-0"
             className={`relative aspect-[1/3] w-[38px] md:w-[46px] bg-emerald-600 hover:bg-emerald-500 border border-white/15 text-white font-heading font-black text-xl grid place-items-center transition-all ${disabled ? "pointer-events-none" : ""} ${
               resultNumber === 0 ? "ring-2 ring-yellow-300" : ""
-            } ${selectedNums.includes(0) ? "ring-2 ring-cyan-300 ring-inset" : ""}`}
+            }`}
           >
             0
-            {(() => {
-              const total = Object.keys(bets).filter((k) => keyContainsNumber(k, 0)).reduce((s, k) => s + (bets[k] || 0), 0);
-              return total > 0 ? (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="min-w-[26px] h-[20px] px-1.5 rounded-full bg-yellow-400 text-black text-[10px] font-black grid place-items-center border-2 border-yellow-700 shadow"
-                       data-testid="bet-total-0">
-                    ₹{total}
-                  </div>
-                </div>
-              ) : null;
-            })()}
+            {chipOverlay("straight_0")}
           </button>
 
-          {/* 3×12 grid */}
-          <div className="flex-1 grid grid-cols-12 gap-1">
-            {TABLE_GRID.flat().map((n) => numCell(n))}
+          {/* 3×12 grid with hotspot SVG overlay */}
+          <div className="relative flex-1">
+            <div className="grid grid-cols-12 gap-1">
+              {TABLE_GRID.flat().map((n) => numCell(n))}
+            </div>
+
+            {/* SVG hotspot overlay — click BETWEEN cells for splits & corners */}
+            <svg
+              className="absolute inset-0 w-full h-full"
+              viewBox="0 0 1200 300"
+              preserveAspectRatio="none"
+              style={{ pointerEvents: "none" }}
+            >
+              {/* Split hotspots — rectangles straddling the boundary between two adjacent cells */}
+              {splitHotspots.map((h) => {
+                // Vertical border (horizontal split, between two columns) → tall rect
+                // Horizontal border (vertical split, within one column)   → wide rect
+                const isHorizontalSplit = h.y === 50 || h.y === 150 || h.y === 250;
+                const w = isHorizontalSplit ? 22 : 44;
+                const hgt = isHorizontalSplit ? 44 : 22;
+                const placed = !!bets[h.key];
+                return (
+                  <g key={h.key}>
+                    <rect
+                      x={h.x - w / 2}
+                      y={h.y - hgt / 2}
+                      width={w}
+                      height={hgt}
+                      fill={placed ? "rgba(250,204,21,0.35)" : "rgba(255,255,255,0.06)"}
+                      stroke={placed ? "rgba(250,204,21,0.8)" : "rgba(255,255,255,0.15)"}
+                      strokeWidth={1.5}
+                      rx={5}
+                      style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
+                      data-testid={`hotspot-${h.key}`}
+                      onClick={() => onPlace(h.key)}
+                    >
+                      <title>{`Split ${h.nums.join(" · ")} — 17:1`}</title>
+                    </rect>
+                    {placed && (
+                      <g pointerEvents="none">
+                        <circle cx={h.x} cy={h.y} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
+                        <text
+                          x={h.x}
+                          y={h.y}
+                          fill="#000"
+                          fontSize={9}
+                          fontWeight={900}
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                        >
+                          ₹{bets[h.key]}
+                        </text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+
+              {/* Corner hotspots — small circles at 4-cell intersections */}
+              {cornerHotspots.map((h) => {
+                const placed = !!bets[h.key];
+                return (
+                  <g key={h.key}>
+                    <circle
+                      cx={h.x}
+                      cy={h.y}
+                      r={14}
+                      fill={placed ? "rgba(250,204,21,0.35)" : "rgba(255,255,255,0.06)"}
+                      stroke={placed ? "rgba(250,204,21,0.8)" : "rgba(255,255,255,0.15)"}
+                      strokeWidth={1.5}
+                      style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
+                      data-testid={`hotspot-${h.key}`}
+                      onClick={() => onPlace(h.key)}
+                    >
+                      <title>{`Corner ${h.nums.join(" · ")} — 8:1`}</title>
+                    </circle>
+                    {placed && (
+                      <g pointerEvents="none">
+                        <circle cx={h.x} cy={h.y} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
+                        <text
+                          x={h.x}
+                          y={h.y}
+                          fill="#000"
+                          fontSize={9}
+                          fontWeight={900}
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                        >
+                          ₹{bets[h.key]}
+                        </text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
           </div>
         </div>
 
-        {/* Streets row (only 2 allowed per spec) + Dozens */}
+        {/* Dozens row */}
         <div className="mt-1 flex gap-1">
           <div className="w-[38px] md:w-[46px]" />
           <div className="flex-1 grid grid-cols-3 gap-1">
@@ -160,16 +229,14 @@ export default function RouletteTableGrid({
             {outsideBtn("high", "19–36")}
           </div>
         </div>
+
+        {/* Quick-help legend */}
+        <div className="mt-2 text-[10px] text-slate-400 text-center px-2">
+          Tap a number = <span className="text-yellow-300">Straight (35:1)</span> · Tap the line
+          between 2 numbers = <span className="text-yellow-300">Split (17:1)</span> · Tap the corner
+          between 4 numbers = <span className="text-yellow-300">Corner (8:1)</span>
+        </div>
       </div>
     </div>
   );
-}
-
-// True if the bet key covers this number (straight / split / street / corner).
-function keyContainsNumber(key, n) {
-  if (key === `straight_${n}`) return true;
-  if (key.startsWith("split_") || key.startsWith("street_") || key.startsWith("corner_")) {
-    return key.split("_").slice(1).map(Number).includes(n);
-  }
-  return false;
 }
