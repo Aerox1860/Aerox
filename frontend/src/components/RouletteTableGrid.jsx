@@ -112,30 +112,45 @@ export default function RouletteTableGrid({
               preserveAspectRatio="none"
               style={{ pointerEvents: "none" }}
             >
-              {/* Split hotspots — highlighted connector strip along the shared edge between two cells. */}
+              {/* Split hotspots — a single thin YELLOW line running along the shared edge
+                  between two adjacent cells. A wider invisible line underneath keeps the click
+                  target easy to hit. */}
               {splitHotspots.map((h) => {
                 const isHorizontalSplit = h.y === 50 || h.y === 150 || h.y === 250;
-                const w = isHorizontalSplit ? 20 : 78;
-                const hgt = isHorizontalSplit ? 78 : 20;
+                // Visible line endpoints
+                let x1, y1, x2, y2;
+                if (isHorizontalSplit) {
+                  // Vertical line between two columns — spans one cell's height
+                  x1 = h.x; x2 = h.x;
+                  y1 = h.y - 40; y2 = h.y + 40;
+                } else {
+                  // Horizontal line between two rows in the same column — spans cell width
+                  x1 = h.x - 40; x2 = h.x + 40;
+                  y1 = h.y; y2 = h.y;
+                }
                 const placed = !!bets[h.key];
                 return (
                   <g key={h.key}>
-                    <rect
-                      x={h.x - w / 2}
-                      y={h.y - hgt / 2}
-                      width={w}
-                      height={hgt}
-                      fill={placed ? "rgba(250,204,21,0.35)" : "rgba(250,204,21,0.10)"}
-                      stroke={placed ? "rgba(250,204,21,1)" : "rgba(250,204,21,0.45)"}
-                      strokeWidth={placed ? 2 : 1.5}
-                      strokeDasharray={placed ? "0" : "4 3"}
-                      rx={4}
+                    {/* Invisible hit area (fat transparent line) */}
+                    <line
+                      x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke="transparent"
+                      strokeWidth={22}
+                      strokeLinecap="round"
                       style={{ pointerEvents: disabled ? "none" : "auto", cursor: "pointer" }}
                       data-testid={`hotspot-${h.key}`}
                       onClick={() => onPlace(h.key)}
                     >
                       <title>{`Split ${h.nums.join(" · ")} — 17:1`}</title>
-                    </rect>
+                    </line>
+                    {/* Visible thin yellow line */}
+                    <line
+                      x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke={placed ? "#facc15" : "rgba(250,204,21,0.85)"}
+                      strokeWidth={placed ? 4 : 2.5}
+                      strokeLinecap="round"
+                      pointerEvents="none"
+                    />
                     {placed && (
                       <g pointerEvents="none">
                         <circle cx={h.x} cy={h.y} r={11} fill="#facc15" stroke="#854d0e" strokeWidth={2} />
