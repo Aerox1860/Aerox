@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { LifeBuoy, CheckCircle2, XCircle, Clock, Loader2, Image as ImageIcon, Send } from "lucide-react";
+import { LifeBuoy, CheckCircle2, XCircle, Clock, Loader2, Image as ImageIcon, Send, RefreshCw } from "lucide-react";
 import { api, formatApiError, BACKEND_URL } from "@/lib/api";
 
 const tabs = ["open", "in_progress", "resolved", "rejected"];
@@ -18,9 +18,22 @@ export default function AdminSupport() {
   const [selected, setSelected] = useState(null);
   const [reply, setReply] = useState("");
   const [newStatus, setNewStatus] = useState("resolved");
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = () => api.get(`/admin/support/tickets?status_filter=${tab}`).then(({ data }) => setRows(data));
-  useEffect(() => { load(); }, [tab]); // eslint-disable-line
+  const load = async () => {
+    setRefreshing(true);
+    try {
+      const { data } = await api.get(`/admin/support/tickets?status_filter=${tab}`);
+      setRows(data);
+    } catch {} finally { setRefreshing(false); }
+  };
+  useEffect(() => {
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    const t = setInterval(load, 12000);
+    return () => { window.removeEventListener("focus", onFocus); clearInterval(t); };
+  }, [tab]); // eslint-disable-line
 
   const openTicket = (t) => {
     setSelected(t);
@@ -41,7 +54,12 @@ export default function AdminSupport() {
 
   return (
     <div className="space-y-5" data-testid="admin-support">
-      <h1 className="font-heading text-3xl font-black flex items-center gap-2"><LifeBuoy className="w-6 h-6 text-cyan-300" /> Support tickets</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="font-heading text-3xl font-black flex items-center gap-2"><LifeBuoy className="w-6 h-6 text-cyan-300" /> Support tickets <span className="text-sm text-slate-400 font-normal">({rows.length})</span></h1>
+        <button onClick={load} disabled={refreshing} className="btn-ghost px-3 py-2 rounded-lg text-xs flex items-center gap-1" data-testid="refresh-tickets-btn">
+          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+        </button>
+      </div>
 
       <div className="card-surface p-2 inline-flex gap-1 flex-wrap">
         {tabs.map((t) => (

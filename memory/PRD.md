@@ -32,6 +32,14 @@ AeroX Crash is a real-time aviation "crash" style multiplayer game where players
 - Profile: stats + recent bets + daily bonus claim
 - Mobile-first bottom nav (5 tabs)
 
+### v1.1 additions (2026-02-08 → 2026-07-30)
+- Forced temp-password reset flow, admin-manual deposit crediting, duplicate UTR tracking
+- Host-based admin/player routing, cross-device polling for wallet/deposits
+- Support ticketing with Emergent Object Storage for payment proofs
+- `/games` catalog dashboard with AeroX Crash live + 8 coming-soon games
+- Roulette lobby (`/games/roulette`) with 7 live tables: Hindi, Lightning, American, Mega Fire Blaze, Speed Sic Bo, Bucharest Quantum, Arabic
+- **Playable European Roulette engine** (2026-07-30) — `/games/roulette/:tableId` opens a real game with wooden wheel (exact 37-number European sequence), 20s betting → 8s spin → 4s result loop, ball animates to winning number, popup shows result. Bet types: straight (35:1), red/black/even/odd/low/high (1:1), dozens (3:1). Zero rule: only straight-0 wins on zero. Backend engine in `/app/backend/roulette.py` with routes `GET /api/roulette/state`, `POST /api/roulette/bet`, `GET /api/roulette/my-bets`, `GET /api/roulette/history`.
+
 ### Admin portal
 - Sidebar dashboard with live metrics + game controls
 - Users: search, block/unblock, adjust balance
@@ -42,6 +50,10 @@ AeroX Crash is a real-time aviation "crash" style multiplayer game where players
 - Reports: top winners, recent rounds
 
 ## Prioritized Backlog / P0/P1/P2
+
+### P0 (next)
+- Column bets (2:1) on the Roulette table (currently only dozens outside bets are exposed)
+- Roulette in-game chat + live-players count
 
 ### P1 (next iterations)
 - Chat moderation UI in admin

@@ -1,10 +1,10 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Home, Plane, Wallet as WalletIcon, Trophy, User, LogOut } from "lucide-react";
+import { Home, Gamepad2, Wallet as WalletIcon, Trophy, User, LogOut, Plane } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const items = [
   { to: "/", label: "Lobby", icon: Home, testid: "nav-lobby" },
-  { to: "/game", label: "Game", icon: Plane, testid: "nav-game" },
+  { to: "/games", label: "Games", icon: Gamepad2, testid: "nav-games" },
   { to: "/wallet", label: "Wallet", icon: WalletIcon, testid: "nav-wallet" },
   { to: "/leaderboard", label: "Board", icon: Trophy, testid: "nav-leaderboard" },
   { to: "/profile", label: "Me", icon: User, testid: "nav-profile" },

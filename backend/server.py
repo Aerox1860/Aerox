@@ -316,6 +316,8 @@ async def startup():
         logger.warning(f"Storage init deferred: {e}")
     # Start game loop
     asyncio.create_task(game_loop())
+    # Start roulette loop
+    asyncio.create_task(_roulette_loop())
 
 
 @app.on_event("shutdown")
@@ -1361,6 +1363,11 @@ async def root():
 
 
 app.include_router(api)
+
+# ------------- Roulette module -------------
+from roulette import build_router as _build_roulette
+_roulette_router, _roulette_loop = _build_roulette(db, credit, debit)
+app.include_router(_roulette_router)
 
 app.add_middleware(
     CORSMiddleware,

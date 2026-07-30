@@ -26,16 +26,18 @@ import AdminSupport from "@/pages/admin/Support";
 import PlayerLayout from "@/components/PlayerLayout";
 import ChangePassword from "@/pages/ChangePassword";
 import Support from "@/pages/Support";
+import Games from "@/pages/Games";
+import RouletteLobby from "@/pages/RouletteLobby";
+import RouletteGame from "@/pages/RouletteGame";
 
 // Host-based routing:
-// - Hosts containing "admin" (e.g. gowin365xadmin.com) → admin-only app
-// - All other hosts (e.g. gowin365x.com) → player-only app
-// Preview/local host `aerox-wallet.preview.emergentagent.com` allows both.
+// - Hosts containing "admin" (e.g. admin.gowin365x.com or gowin365xadmin.com) → admin-only app
+// - All other hosts → FULL app (both player and admin available)
+//   Admins access via /admin/login, players via /login on the same domain.
 function detectHostMode() {
   if (typeof window === "undefined") return "both";
   const h = window.location.hostname.toLowerCase();
   if (h.includes("admin")) return "admin";
-  if (h.includes("gowin365x") || h.includes("aeroxplayer")) return "player";
   return "both";
 }
 
@@ -93,6 +95,9 @@ function AppRoutes() {
         <Route path="/admin/*" element={<Navigate to="/login" replace />} />
         <Route path="/" element={<Protected><PlayerLayout /></Protected>}>
           <Route index element={<Lobby />} />
+          <Route path="games" element={<Games />} />
+          <Route path="games/roulette" element={<RouletteLobby />} />
+          <Route path="games/roulette/:tableId" element={<RouletteGame />} />
           <Route path="game" element={<Game />} />
           <Route path="wallet" element={<Wallet />} />
           <Route path="deposit" element={<Deposit />} />
@@ -117,6 +122,9 @@ function AppRoutes() {
 
       <Route path="/" element={<Protected><PlayerLayout /></Protected>}>
         <Route index element={<Lobby />} />
+        <Route path="games" element={<Games />} />
+        <Route path="games/roulette" element={<RouletteLobby />} />
+        <Route path="games/roulette/:tableId" element={<RouletteGame />} />
         <Route path="game" element={<Game />} />
         <Route path="wallet" element={<Wallet />} />
         <Route path="deposit" element={<Deposit />} />

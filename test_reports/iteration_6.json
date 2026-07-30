@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 6 frontend-only routing regression fix verified. detectHostMode() in App.js now returns 'admin' only if hostname contains 'admin', else 'both'. Preview host (aerox-wallet.preview.emergentagent.com) correctly falls into 'both' mode, exposing both /login and /admin/login independently. All 6 routing scenarios passed on the preview URL. Production domain gowin365x.com will behave identically once redeployed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": [
+    {"name": "T1: /admin/login shows Admin login form with all testids + 'AeroX Admin' heading", "status": "PASS"},
+    {"name": "T2: /login shows player login form (data-testid=login-form)", "status": "PASS"},
+    {"name": "T3: Admin login via /admin/login with gowin365x@gmail.com / Admin@AeroX2026 lands on /admin (data-testid=admin-dashboard visible)", "status": "PASS"},
+    {"name": "T4: Player login via /login with testuser@aerox.com / Test@1234 lands on / (data-testid=lobby-page visible)", "status": "PASS"},
+    {"name": "T5: Unauthenticated /admin redirects to /admin/login (NOT /login)", "status": "PASS"},
+    {"name": "T6: Logged-in admin visiting /login is auto-redirected to /admin", "status": "PASS"},
+    {"name": "Code inspection: detectHostMode() returns 'admin' only if hostname.includes('admin'); no more gowin365x/aeroxplayer special case; admin-only-host lockout branch preserved for future admin subdomain", "status": "PASS"}
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Inform user to redeploy the production build so gowin365x.com picks up the App.js routing fix. No code changes needed."
+  ],
+  "critical_code_review_comments": [
+    "HOST_MODE = detectHostMode() is computed once at module load — fine for SPA since hostname doesn't change. No issues.",
+    "The 'player'-only host branch (lines 86-107) is now unreachable via detectHostMode(), but retained for possible future player subdomain — acceptable dead code with clear intent."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (6/6 routing scenarios + code inspection)"},
+  "test_credentials": "Admin: gowin365x@gmail.com / Admin@AeroX2026; Player: testuser@aerox.com / Test@1234",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "detectHostMode logic in /app/frontend/src/App.js (lines 34-39): 'admin' in hostname → admin-only host; anything else → both mode (player + admin routes on same domain). Preview URL is in 'both' mode. Same behavior will apply to production gowin365x.com after redeploy."
+}

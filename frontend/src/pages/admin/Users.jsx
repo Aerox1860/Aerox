@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Search, Ban, Check, Plus, Minus, KeyRound, Copy, X as XIcon, RefreshCw } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
@@ -11,9 +11,25 @@ export default function AdminUsers() {
   const [tempReveal, setTempReveal] = useState(null); // { user_email, temp_password, expires_at }
   const [delta, setDelta] = useState("");
   const [note, setNote] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const qRef = useRef("");
 
-  const load = () => api.get(`/admin/users${q ? `?search=${encodeURIComponent(q)}` : ""}`).then(({ data }) => setUsers(data));
-  useEffect(() => { load(); }, []); // eslint-disable-line
+  const load = async () => {
+    setRefreshing(true);
+    try {
+      const currentQ = qRef.current;
+      const { data } = await api.get(`/admin/users${currentQ ? `?search=${encodeURIComponent(currentQ)}` : ""}`);
+      setUsers(data);
+    } catch {} finally { setRefreshing(false); }
+  };
+  useEffect(() => { qRef.current = q; }, [q]);
+  useEffect(() => {
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    const t = setInterval(load, 15000);
+    return () => { window.removeEventListener("focus", onFocus); clearInterval(t); };
+  }, []); // eslint-disable-line
 
   const doSearch = (e) => { e.preventDefault(); load(); };
 
@@ -47,7 +63,12 @@ export default function AdminUsers() {
 
   return (
     <div className="space-y-5" data-testid="admin-users">
-      <h1 className="font-heading text-3xl font-black">Users</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="font-heading text-3xl font-black">Users <span className="text-sm text-slate-400 font-normal">({users.length})</span></h1>
+        <button onClick={load} disabled={refreshing} className="btn-ghost px-3 py-2 rounded-lg text-xs flex items-center gap-1" data-testid="refresh-users-btn">
+          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+        </button>
+      </div>
 
       <form onSubmit={doSearch} className="card-surface p-3 flex items-center gap-2">
         <Search className="w-4 h-4 text-slate-500 ml-2" />

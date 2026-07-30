@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check, X } from "lucide-react";
+import { Check, X, RefreshCw } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 
 const tabs = ["pending", "paid", "rejected"];
@@ -8,9 +8,22 @@ const tabs = ["pending", "paid", "rejected"];
 export default function AdminWithdrawals() {
   const [tab, setTab] = useState("pending");
   const [rows, setRows] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = () => api.get(`/admin/withdrawals?status_filter=${tab}`).then(({ data }) => setRows(data));
-  useEffect(() => { load(); }, [tab]); // eslint-disable-line
+  const load = async () => {
+    setRefreshing(true);
+    try {
+      const { data } = await api.get(`/admin/withdrawals?status_filter=${tab}`);
+      setRows(data);
+    } catch {} finally { setRefreshing(false); }
+  };
+  useEffect(() => {
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    const t = setInterval(load, 10000);
+    return () => { window.removeEventListener("focus", onFocus); clearInterval(t); };
+  }, [tab]); // eslint-disable-line
 
   const act = async (id, action) => {
     try { await api.post(`/admin/withdrawals/${id}/${action}`); toast.success(action === "approve" ? "Marked as paid" : "Rejected & refunded"); load(); }
@@ -19,7 +32,12 @@ export default function AdminWithdrawals() {
 
   return (
     <div className="space-y-5" data-testid="admin-withdrawals">
-      <h1 className="font-heading text-3xl font-black">Withdrawals</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="font-heading text-3xl font-black">Withdrawals <span className="text-sm text-slate-400 font-normal">({rows.length})</span></h1>
+        <button onClick={load} disabled={refreshing} className="btn-ghost px-3 py-2 rounded-lg text-xs flex items-center gap-1" data-testid="refresh-withdrawals-btn">
+          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+        </button>
+      </div>
 
       <div className="card-surface p-2 inline-flex gap-1">
         {tabs.map((t) => (

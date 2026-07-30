@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowDownToLine, ArrowUpFromLine, History } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, History, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
@@ -17,9 +17,27 @@ const typeColor = {
 export default function Wallet() {
   const { user } = useAuth();
   const [txns, setTxns] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
 
+  const load = async () => {
+    setRefreshing(true);
+    try {
+      const { data } = await api.get("/wallet/transactions?limit=100");
+      setTxns(data);
+    } catch {} finally { setRefreshing(false); }
+  };
   useEffect(() => {
-    api.get("/wallet/transactions?limit=100").then(({ data }) => setTxns(data)).catch(() => {});
+    load();
+    const onFocus = () => load();
+    const onVis = () => { if (!document.hidden) load(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    const t = setInterval(load, 10000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+      clearInterval(t);
+    };
   }, []);
 
   return (
@@ -37,9 +55,14 @@ export default function Wallet() {
       </div>
 
       <div className="card-surface p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <History className="w-4 h-4 text-cyan-300" />
-          <h2 className="font-heading font-bold">Transactions</h2>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-cyan-300" />
+            <h2 className="font-heading font-bold">Transactions</h2>
+          </div>
+          <button onClick={load} disabled={refreshing} className="btn-ghost px-3 py-1.5 rounded-lg text-xs flex items-center gap-1" data-testid="refresh-txns-btn">
+            <RefreshCw className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+          </button>
         </div>
         <div className="divide-y divide-white/5" data-testid="transactions-list">
           {txns.length === 0 && <div className="text-sm text-slate-500 py-3">No transactions yet</div>}

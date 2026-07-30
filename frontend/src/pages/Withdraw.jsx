@@ -24,7 +24,19 @@ export default function Withdraw() {
   const [history, setHistory] = useState([]);
 
   const load = () => api.get("/withdrawals/mine").then(({ data }) => setHistory(data)).catch(() => {});
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const onFocus = () => load();
+    const onVis = () => { if (!document.hidden) load(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    const t = setInterval(load, 12000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+      clearInterval(t);
+    };
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();

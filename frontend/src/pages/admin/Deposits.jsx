@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check, X, Plus, AlertTriangle, Zap } from "lucide-react";
+import { Check, X, Plus, AlertTriangle, Zap, RefreshCw } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 
 const tabs = ["pending", "approved", "rejected", "attempts"];
@@ -10,18 +10,27 @@ export default function AdminDeposits() {
   const [rows, setRows] = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [showManual, setShowManual] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = async () => {
-    if (tab === "attempts") {
-      const { data } = await api.get("/admin/deposit-attempts");
-      setAttempts(data);
-      setRows([]);
-    } else {
-      const { data } = await api.get(`/admin/deposits?status_filter=${tab}`);
-      setRows(data);
-    }
+    setRefreshing(true);
+    try {
+      if (tab === "attempts") {
+        const { data } = await api.get("/admin/deposit-attempts");
+        setAttempts(data); setRows([]);
+      } else {
+        const { data } = await api.get(`/admin/deposits?status_filter=${tab}`);
+        setRows(data);
+      }
+    } catch {} finally { setRefreshing(false); }
   };
-  useEffect(() => { load(); }, [tab]); // eslint-disable-line
+  useEffect(() => {
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    const t = setInterval(load, 10000);
+    return () => { window.removeEventListener("focus", onFocus); clearInterval(t); };
+  }, [tab]); // eslint-disable-line
 
   const act = async (id, action) => {
     try { await api.post(`/admin/deposits/${id}/${action}`); toast.success(action === "approve" ? "Approved & credited" : "Rejected"); load(); }
@@ -31,10 +40,15 @@ export default function AdminDeposits() {
   return (
     <div className="space-y-5" data-testid="admin-deposits">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="font-heading text-3xl font-black">Deposits</h1>
-        <button onClick={() => setShowManual(true)} className="btn-cyan px-4 py-2 rounded-xl flex items-center gap-2 text-sm" data-testid="manual-credit-btn">
-          <Zap className="w-4 h-4" /> Manual credit
-        </button>
+        <h1 className="font-heading text-3xl font-black">Deposits <span className="text-sm text-slate-400 font-normal">({tab === "attempts" ? attempts.length : rows.length})</span></h1>
+        <div className="flex items-center gap-2">
+          <button onClick={load} disabled={refreshing} className="btn-ghost px-3 py-2 rounded-lg text-xs flex items-center gap-1" data-testid="refresh-deposits-btn">
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+          </button>
+          <button onClick={() => setShowManual(true)} className="btn-cyan px-4 py-2 rounded-xl flex items-center gap-2 text-sm" data-testid="manual-credit-btn">
+            <Zap className="w-4 h-4" /> Manual credit
+          </button>
+        </div>
       </div>
 
       <div className="card-surface p-2 inline-flex gap-1 flex-wrap">

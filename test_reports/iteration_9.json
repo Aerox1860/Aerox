@@ -1,0 +1,23 @@
+{
+  "summary": "Iteration 9 — frontend real-time polling / cross-device sync fix. Verified AuthContext auto-polls /auth/me every ~10s (topbar balance updated 300->400 automatically within 13s after admin manual credit, with exactly 1 /auth/me call — no infinite loop). Polling correctly STOPS after logout (0 /auth/me calls in 13s post-logout). Wallet Refresh button, transactions list, Withdraw history list, and all three admin pages (Deposits/Withdrawals/Support) have working refresh buttons + count in heading. Admin auto-refresh proven: new user deposit made count go 4->5 within 12s; new user support ticket made count go 4->5 within 14s.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AuthContext.jsx: setInterval is created inside a useEffect gated on [user, refresh]. Because refresh is a useCallback with [] deps it is stable, and user changes from null->object once at login, so the interval is created once — good. Confirmed no duplicate intervals via runtime measurement (1 call / 10s).",
+    "AuthContext.jsx: On tab focus the code calls refresh(); if the user rapidly focuses/blurs (e.g., alt-tabbing), each focus fires an /auth/me. Consider debouncing focus/visibility handlers to avoid burst requests. Non-blocking."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100% (9/9 scenarios verified)"},
+  "test_credentials": "Admin: gowin365x@gmail.com / Admin@AeroX2026; User: testuser@aerox.com / Test@1234 — both working",
+  "seed_data_creation": "Created 1 pending deposit (₹250, UTR 121785338234) and 1 open support ticket ('auto poll test') on testuser@aerox.com for auto-refresh verification. Balance credited +₹100 (300->400).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All iteration-9 real-time sync scenarios pass end-to-end against live preview. Verified: (a) topbar-balance auto-updates via AuthContext polling; (b) refresh-txns-btn, refresh-deposits-btn, refresh-withdrawals-btn, refresh-tickets-btn are present, clickable, and spin on click; (c) counts appear in H1 headings on all three admin pages: 'Deposits (N)', 'Withdrawals (N)', 'Support tickets (N)'; (d) admin deposits and admin support auto-refresh when user submits new items via API within ~12s; (e) polling stops cleanly on logout. Non-blocking suggestion only: debounce focus/visibility handlers in AuthContext. Note: after user login the app redirects to '/' (lobby), not '/wallet' — /wallet reachable via nav link (bottom bar) or direct URL.",
+  "rca of the issue": "Original bug: same user showed different balances across devices because pages read AuthContext.user once at mount and never refetched. Fix (verified working): AuthProvider now polls GET /auth/me every 10s while user is truthy, plus on window focus and document visibilitychange. Because topbar-balance renders user.balance from context, the DOM refreshes automatically. Reproduction test in this iteration: logged in Playwright as testuser, called admin manual credit API from same page context, waited 13s without any UI action — balance went 300->400 with only 1 /auth/me call. Logout cleanup verified via useEffect return unmounting the interval + event listeners (0 calls in 13s post-logout)."
+}

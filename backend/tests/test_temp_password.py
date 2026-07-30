@@ -9,8 +9,8 @@ from datetime import datetime, timezone, timedelta
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://aerox-wallet.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN_EMAIL = "gowin365x@gmail.com"
-ADMIN_PASSWORD = "Admin@AeroX2026"
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "gowin365x@gmail.com")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin@AeroX2026")
 
 
 @pytest.fixture(scope="module")
