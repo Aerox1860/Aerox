@@ -68,12 +68,12 @@ export default function RouletteWheel({ resultNumber, spinning }) {
                 x={lx}
                 y={ly}
                 fill="#ffffff"
-                fontSize={num >= 10 ? 10 : 11}
-                fontWeight={800}
+                fontSize={num >= 10 ? 13 : 14}
+                fontWeight={900}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 transform={`rotate(${midA + 90} ${lx} ${ly})`}
-                style={{ fontFamily: "monospace", textShadow: "0 1px 1px rgba(0,0,0,0.9)" }}
+                style={{ fontFamily: "monospace", textShadow: "0 1px 2px rgba(0,0,0,0.95)", letterSpacing: "-0.5px" }}
               >
                 {num}
               </text>
