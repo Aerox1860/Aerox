@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useParams, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Timer, X, TrendingUp, History, RotateCcw, Trophy, Undo2, HelpCircle } from "lucide-react";
+import { ArrowLeft, Timer, X, TrendingUp, History, RotateCcw, Trophy, Undo2, HelpCircle, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -23,6 +23,9 @@ export default function RouletteGame() {
   const [showResult, setShowResult] = useState(null); // {number, netProfit}
   const [myBets, setMyBets] = useState([]);           // current round bets from server
   const [showRules, setShowRules] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyRows, setHistoryRows] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const myBetsRef = useRef([]);
   const lastResultRoundRef = useRef(null);
   const lastPhaseRef = useRef(null);
@@ -189,6 +192,19 @@ export default function RouletteGame() {
     setBets({});
   };
 
+  const openHistory = async () => {
+    setShowHistory(true);
+    setLoadingHistory(true);
+    try {
+      const { data } = await api.get("/roulette/my-history?hours=24");
+      setHistoryRows(data.history || []);
+    } catch (e) {
+      toast.error(formatApiError(e));
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   return (
     <div className="space-y-4" data-testid={`roulette-game-${table.id}`}>
       {/* Header */}
@@ -205,6 +221,14 @@ export default function RouletteGame() {
           <div className={`text-[10px] uppercase ${table.accent}`}>{table.tagline}</div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={openHistory}
+            data-testid="open-game-history-btn"
+            title="Last 24 hours of game bets"
+            className="chip !text-yellow-300 hover:!bg-yellow-500/20 !border-yellow-400/40 text-[11px]"
+          >
+            <ClipboardList className="w-3.5 h-3.5" /> History
+          </button>
           <button
             onClick={() => setShowRules(true)}
             data-testid="open-rules-btn"
@@ -346,6 +370,9 @@ export default function RouletteGame() {
 
       {/* Rules modal */}
       <RulesModal open={showRules} onClose={() => setShowRules(false)} />
+
+      {/* Game history modal */}
+      <GameHistoryModal open={showHistory} onClose={() => setShowHistory(false)} rows={historyRows} loading={loadingHistory} />
 
       {/* Result popup */}
       <AnimatePresence>
@@ -582,6 +609,101 @@ function RulesModal({ open, onClose }) {
 }
 
 function BetModeSelector() { return null; /* deprecated — replaced by SVG hotspot clicks */ }
+
+function GameHistoryModal({ open, onClose, rows = [], loading }) {
+  if (!open) return null;
+  const totalWagered = rows.reduce((s, r) => s + (r.amount || 0), 0);
+  const totalWon = rows.filter((r) => r.status === "won").reduce((s, r) => s + (r.payout || 0), 0);
+  const netProfit = totalWon - totalWagered;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+      data-testid="game-history-modal"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="card-surface p-5 md:p-6 max-w-lg w-full max-h-[85vh] flex flex-col"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-widest text-yellow-300">Game History</div>
+            <h2 className="font-heading text-lg md:text-xl font-black">Last 24 Hours</h2>
+          </div>
+          <button
+            onClick={onClose}
+            data-testid="close-history-btn"
+            className="text-slate-400 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="bg-black/40 border border-white/10 rounded-lg px-2 py-2 text-center">
+            <div className="text-[9px] uppercase text-slate-400">Bets</div>
+            <div className="font-mono font-bold text-sm" data-testid="history-count">{rows.length}</div>
+          </div>
+          <div className="bg-black/40 border border-white/10 rounded-lg px-2 py-2 text-center">
+            <div className="text-[9px] uppercase text-slate-400">Wagered</div>
+            <div className="font-mono font-bold text-sm">₹{totalWagered.toFixed(0)}</div>
+          </div>
+          <div className="bg-black/40 border border-white/10 rounded-lg px-2 py-2 text-center">
+            <div className="text-[9px] uppercase text-slate-400">Net</div>
+            <div className={`font-mono font-bold text-sm ${netProfit > 0 ? "text-green-400" : netProfit < 0 ? "text-red-400" : "text-slate-300"}`}>
+              {netProfit > 0 ? "+" : ""}₹{netProfit.toFixed(0)}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1" data-testid="history-list">
+          {loading && <div className="text-center text-sm text-slate-400 py-4">Loading…</div>}
+          {!loading && rows.length === 0 && (
+            <div className="text-center text-sm text-slate-500 py-6">
+              No game bets in the last 24 hours yet.
+            </div>
+          )}
+          {!loading && rows.map((r) => {
+            const won = r.status === "won";
+            const lost = r.status === "lost";
+            const pending = r.status === "pending";
+            const when = r.created_at ? new Date(r.created_at).toLocaleString() : "";
+            return (
+              <div
+                key={r.id}
+                className="flex items-center justify-between gap-2 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-[12px]"
+                data-testid={`history-row-${r.id}`}
+              >
+                <div className="min-w-0">
+                  <div className="font-heading font-bold text-white truncate">
+                    {labelForBet(r.bet_type)}
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    {when}
+                    {r.result_number != null && ` · result ${r.result_number}`}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="font-mono text-white">−₹{r.amount}</div>
+                  <div className={`text-[10px] font-mono font-bold ${
+                    won ? "text-green-400" : lost ? "text-red-400" : "text-yellow-300"
+                  }`}>
+                    {won ? `+₹${(r.payout || 0).toFixed(0)}` : lost ? "Lost" : "Pending"}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 text-[10px] text-slate-500 text-center">
+          Game bets are shown here only. Deposits and withdrawals are on the Wallet page.
+          <br />History auto-clears after 24 hours.
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function WinnersTicker({ winners = [] }) {
   if (winners.length === 0) return null;

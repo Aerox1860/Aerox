@@ -215,6 +215,33 @@ def build_router(db, credit_fn, debit_fn, current_user_dep):
                 logger.exception(f"roulette round crashed: {e}")
                 await asyncio.sleep(2)
 
+    async def _cleanup_loop():
+        """Every hour, delete roulette bets & transactions older than 24 hours."""
+        await asyncio.sleep(30)  # let app boot
+        while True:
+            try:
+                from datetime import timedelta
+                cutoff = iso(now_utc() - timedelta(hours=24))
+                r1 = await db.roulette_bets.delete_many({"created_at": {"$lt": cutoff}})
+                r2 = await db.transactions.delete_many({
+                    "type": {"$in": ["roulette_bet", "roulette_win", "roulette_refund"]},
+                    "created_at": {"$lt": cutoff},
+                })
+                r3 = await db.roulette_rounds.delete_many({"started_at": {"$lt": cutoff}})
+                if r1.deleted_count or r2.deleted_count or r3.deleted_count:
+                    logger.info(
+                        f"roulette cleanup: {r1.deleted_count} bets, "
+                        f"{r2.deleted_count} txns, {r3.deleted_count} rounds pruned (>24h)"
+                    )
+            except Exception as e:  # noqa: BLE001
+                logger.exception(f"roulette cleanup failed: {e}")
+            await asyncio.sleep(60 * 60)  # every hour
+
+    async def _combined_loop():
+        # Fire-and-forget the cleanup loop alongside the game round loop.
+        asyncio.create_task(_cleanup_loop())
+        await _round_loop()
+
     async def _run_one_round():
         round_id = str(uuid.uuid4())
         # ---- Betting phase ----
@@ -381,8 +408,19 @@ def build_router(db, credit_fn, debit_fn, current_user_dep):
         u = await db.users.find_one({"id": user["id"]})
         return {"ok": True, "refunded": bet["amount"], "balance": u.get("balance", 0)}
 
+    @router.get("/my-history")
+    async def my_history(user: dict = Depends(current_user_dep), hours: int = 24):
+        """Return this user's roulette bets settled in the last N hours (default 24)."""
+        from datetime import timedelta
+        cutoff = iso(now_utc() - timedelta(hours=max(1, min(hours, 24))))
+        rows = await db.roulette_bets.find(
+            {"user_id": user["id"], "created_at": {"$gte": cutoff}},
+            {"_id": 0},
+        ).sort("created_at", -1).to_list(length=500)
+        return {"history": rows, "hours": hours}
+
     @router.get("/history")
     async def history():
         return {"history": STATE["history"]}
 
-    return router, _round_loop
+    return router, _combined_loop

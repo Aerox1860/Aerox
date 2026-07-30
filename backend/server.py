@@ -488,7 +488,13 @@ async def get_balance(user: dict = Depends(current_user)):
 
 @api.get("/wallet/transactions")
 async def get_transactions(user: dict = Depends(current_user), limit: int = 50):
-    docs = await db.transactions.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    # Wallet page shows deposits/withdrawals/bonus/referral only — NOT roulette or crash bets/wins.
+    exclude_types = {"roulette_bet", "roulette_win", "roulette_refund",
+                     "crash_bet", "crash_win", "crash_refund"}
+    docs = await db.transactions.find(
+        {"user_id": user["id"], "type": {"$nin": list(exclude_types)}},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(limit).to_list(limit)
     return docs
 
 
