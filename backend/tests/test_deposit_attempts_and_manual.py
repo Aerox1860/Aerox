@@ -8,7 +8,6 @@ Covers new features:
 - Regression on existing GET /api/admin/deposits filters + approve
 """
 import os
-import os
 import uuid
 import time
 import requests
