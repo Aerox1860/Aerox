@@ -86,9 +86,9 @@ function RouletteWheel({ resultNumber, spinning, lastResultNumber = null }) {
           const path = arcPath(CX, CY, R, RIN, start, end);
           const color = colorOf(num);
           const fill = color === "green" ? "#0f9d3a" : color === "red" ? "#c1121f" : "#0a0a0a";
-          // Label position
+          // Label position — push labels near the OUTER wooden rim (was mid-radius before)
           const midA = (start + end) / 2;
-          const labelR = (R + RIN) / 2;
+          const labelR = R - 18;
           const lx = CX + Math.cos((midA * Math.PI) / 180) * labelR;
           const ly = CY + Math.sin((midA * Math.PI) / 180) * labelR;
           return (
