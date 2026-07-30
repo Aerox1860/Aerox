@@ -251,71 +251,67 @@ export default function RouletteGame() {
 
       {/* SEQUENTIAL layout: betting-only when placing bets, wheel-only when spinning/showing result.
           Never side-by-side — chosen for mobile-first tap-friendliness. */}
-      <AnimatePresence mode="wait" initial={false}>
-        {!isBetting && (
-          <motion.div
-            key="wheel-only"
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.25 }}
-            className="card-surface p-3 md:p-4 flex flex-col items-center gap-2 mx-auto max-w-md"
-            data-testid="wheel-only-view"
-          >
-            <RouletteWheel
-              resultNumber={state?.result_number}
-              spinning={phase === "spinning"}
-              lastResultNumber={state?.history?.[0]?.number ?? null}
-            />
-            <div className="mt-2 text-center">
-              <div className="text-[10px] uppercase tracking-wider text-slate-400">Round Stake</div>
-              <div className="font-mono font-bold text-lg" data-testid="round-stake">₹{totalStake.toFixed(2)}</div>
+      {/* Responsive layout:
+           - Desktop (md+): Wheel + Table+Sidebar shown SIDE-BY-SIDE at all times.
+             Table stays visible during spinning phase (buttons just disabled).
+           - Mobile: sequential — only wheel during spin/result, only table during betting. */}
+      <div
+        className="grid gap-4 md:grid-cols-[auto_auto] md:items-start md:justify-center"
+        data-testid="game-body"
+      >
+        {/* WHEEL panel */}
+        <div
+          className={`card-surface p-3 md:p-4 flex flex-col items-center gap-2 mx-auto max-w-md ${
+            isBetting ? "hidden md:flex" : "flex"
+          }`}
+          data-testid="wheel-panel"
+        >
+          <RouletteWheel
+            resultNumber={phase === "betting" ? null : state?.result_number}
+            spinning={phase === "spinning"}
+            lastResultNumber={state?.history?.[0]?.number ?? null}
+          />
+          <div className="mt-2 text-center">
+            <div className="text-[10px] uppercase tracking-wider text-slate-400">Round Stake</div>
+            <div className="font-mono font-bold text-lg" data-testid="round-stake-wheel">
+              ₹{totalStake.toFixed(2)}
             </div>
+          </div>
+          {!isBetting && (
             <div className="text-[10px] uppercase tracking-widest text-slate-400 mt-1" data-testid="minimized-note">
               Bets locked — betting board reopens next round.
             </div>
-          </motion.div>
-        )}
+          )}
+        </div>
 
-        {isBetting && (
-          <motion.div
-            key="betting-only"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25 }}
-            className="space-y-3"
-            data-testid="betting-ui-wrap"
-          >
-            {/* Two-column: vertical table on left, sidebar controls on right */}
-            <div className="flex gap-2 items-start justify-center" data-testid="table-sidebar-wrap">
-              <div className="shrink-0">
-                <RouletteTableGrid
-                  bets={bets}
-                  onPlace={placeBet}
-                  disabled={!isBetting}
-                  resultNumber={null}
-                />
-              </div>
-
-              {/* Sidebar: chip picker + undo + outside bets + stake */}
-              <BetSidebar
+        {/* TABLE + SIDEBAR panel */}
+        <div
+          className={`space-y-3 ${!isBetting ? "hidden md:block" : "block"}`}
+          data-testid="betting-ui-wrap"
+        >
+          <div className="flex gap-2 items-start justify-center" data-testid="table-sidebar-wrap">
+            <div className="shrink-0">
+              <RouletteTableGrid
                 bets={bets}
-                chip={chip}
-                setChip={setChip}
                 onPlace={placeBet}
-                onUndo={undoLastBet}
-                undoCount={myBets.length}
-                totalStake={totalStake}
                 disabled={!isBetting}
+                resultNumber={phase === "result" ? state?.result_number : null}
               />
             </div>
-
-            {/* My bets summary */}
-            <MyBetsSummary bets={myBets} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <BetSidebar
+              bets={bets}
+              chip={chip}
+              setChip={setChip}
+              onPlace={placeBet}
+              onUndo={undoLastBet}
+              undoCount={myBets.length}
+              totalStake={totalStake}
+              disabled={!isBetting}
+            />
+          </div>
+          <MyBetsSummary bets={myBets} />
+        </div>
+      </div>
 
       {/* Rules modal */}
       <RulesModal open={showRules} onClose={() => setShowRules(false)} />
