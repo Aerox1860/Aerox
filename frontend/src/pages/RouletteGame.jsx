@@ -18,7 +18,6 @@ export default function RouletteGame() {
   const { user, refresh } = useAuth();
 
   const [state, setState] = useState(null);          // {phase, phase_end, result_number, history, ...}
-  const [now, setNow] = useState(Date.now());        // ticks each 200ms for the timer
   const [bets, setBets] = useState({});              // roundId -> {betKey: amount}
   const [chip, setChip] = useState(50);
   const [placing, setPlacing] = useState(false);
@@ -41,12 +40,6 @@ export default function RouletteGame() {
     tick();
     const id = setInterval(tick, POLL_MS);
     return () => { alive = false; clearInterval(id); };
-  }, []);
-
-  // ---- Local timer ticker ----
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 200);
-    return () => clearInterval(id);
   }, []);
 
   // ---- Fetch my bets for current round ----
@@ -95,9 +88,6 @@ export default function RouletteGame() {
   if (!table) return <Navigate to="/games/roulette" replace />;
 
   const phase = state?.phase || "betting";
-  const secondsLeft = state?.phase_end
-    ? Math.max(0, Math.ceil((new Date(state.phase_end).getTime() - now) / 1000))
-    : 0;
   const isBetting = phase === "betting";
   const totalStake = Object.values(bets).reduce((s, v) => s + v, 0);
   const balance = user?.balance ?? 0;
@@ -150,7 +140,7 @@ export default function RouletteGame() {
 
       {/* Timer + phase status (top-left of table area) */}
       <div className="flex items-center justify-between gap-2">
-        <PhaseTimer phase={phase} seconds={secondsLeft} />
+        <PhaseTimer phase={phase} phaseEnd={state?.phase_end} />
         <RecentResults history={state?.history || []} />
       </div>
 
@@ -288,7 +278,20 @@ export default function RouletteGame() {
   );
 }
 
-function PhaseTimer({ phase, seconds }) {
+function PhaseTimer({ phase, phaseEnd }) {
+  // Isolated timer: ticks locally so parent (game + wheel) don't re-render every 200ms.
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (!phaseEnd) return;
+    const compute = () => {
+      const s = Math.max(0, Math.ceil((new Date(phaseEnd).getTime() - Date.now()) / 1000));
+      setSeconds(s);
+    };
+    compute();
+    const id = setInterval(compute, 250);
+    return () => clearInterval(id);
+  }, [phaseEnd]);
+
   // If betting timer has hit 0 but server hasn't reported "spinning" yet, show a transitional label
   const effectivePhase = phase === "betting" && seconds === 0 ? "spinning" : phase;
   const label = effectivePhase === "betting" ? "Place Bets" : effectivePhase === "spinning" ? "Spinning…" : "Result";

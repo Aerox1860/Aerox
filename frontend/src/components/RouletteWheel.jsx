@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { WHEEL_ORDER, colorOf } from "@/lib/roulette";
 
@@ -11,7 +11,7 @@ import { WHEEL_ORDER, colorOf } from "@/lib/roulette";
  *  - lastResultNumber: number | null   -> previous round's result — used to hold wheel position
  *                                          between rounds so the next spin starts from there
  */
-export default function RouletteWheel({ resultNumber, spinning, lastResultNumber = null }) {
+function RouletteWheel({ resultNumber, spinning, lastResultNumber = null }) {
   const N = WHEEL_ORDER.length; // 37
   const segAngle = 360 / N;
   const R = 140;      // outer radius
@@ -50,7 +50,11 @@ export default function RouletteWheel({ resultNumber, spinning, lastResultNumber
   }, [spinning, resultNumber]);
 
   return (
-    <div className="relative w-[320px] h-[320px] mx-auto select-none" data-testid="roulette-wheel">
+    <div
+      className="relative w-[320px] h-[320px] mx-auto select-none"
+      data-testid="roulette-wheel"
+      style={{ transform: "translateZ(0)" }}
+    >
       {/* Wooden rim */}
       <div
         className="absolute inset-0 rounded-full"
@@ -68,6 +72,7 @@ export default function RouletteWheel({ resultNumber, spinning, lastResultNumber
         height={320}
         viewBox="0 0 320 320"
         className="absolute inset-0"
+        style={{ willChange: "transform", backfaceVisibility: "hidden" }}
         initial={{ rotate: wheelRot }}
         animate={{ rotate: wheelRot }}
         transition={{
@@ -135,7 +140,15 @@ export default function RouletteWheel({ resultNumber, spinning, lastResultNumber
       {/* Ball — sits at absolute top; wheel rotates underneath. */}
       <motion.div
         className="absolute"
-        style={{ top: 0, left: 0, width: 320, height: 320, transformOrigin: "160px 160px" }}
+        style={{
+          top: 0,
+          left: 0,
+          width: 320,
+          height: 320,
+          transformOrigin: "160px 160px",
+          willChange: "transform",
+          backfaceVisibility: "hidden",
+        }}
         initial={{ rotate: ballRot }}
         animate={{ rotate: ballRot }}
         transition={{ duration: spinning ? 9.5 : 0.001, ease: [0.15, 0.7, 0.15, 1] }}
@@ -208,3 +221,7 @@ function arcPath(cx, cy, r, rIn, startDeg, endDeg) {
   const y4 = cy + rIn * Math.sin(s);
   return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn} ${rIn} 0 ${large} 0 ${x4} ${y4} Z`;
 }
+
+// Memoize so parent re-renders (state polling / bet placing) don't re-run wheel transforms
+// on mobile browsers — a common cause of shaking/jitter on iOS Safari.
+export default memo(RouletteWheel);
