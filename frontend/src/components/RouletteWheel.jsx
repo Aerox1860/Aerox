@@ -20,8 +20,10 @@ export default function RouletteWheel({ resultNumber, spinning, lastResultNumber
   const CY = 160;
 
   // Landing rotation (degrees) that places number n directly under the top pointer.
+  // Segment i has its CENTER at angle (i*segAngle - 90). Rotating the wheel by -i*segAngle
+  // brings that center to -90 (12 o'clock, under the pointer). No half-segment offset.
   const landingAngleFor = (n) =>
-    n == null ? 0 : -WHEEL_ORDER.indexOf(n) * segAngle - segAngle / 2;
+    n == null ? 0 : -WHEEL_ORDER.indexOf(n) * segAngle;
 
   // Persistent wheel + ball rotations. We increment them (never reset) so
   // successive spins chain smoothly and idle rounds hold the previous result.

@@ -10,12 +10,29 @@ import { colorOf, TABLE_GRID, BET_LABELS } from "@/lib/roulette";
  *  - resultNumber: number | null       used to highlight winning cell
  */
 export default function RouletteTableGrid({ bets = {}, onPlace, disabled = false, resultNumber = null }) {
-  const chip = (key) => {
+  // Centered chip badge (used for outside bets — dozens, red/black, etc.)
+  const centerChip = (key) => {
     const v = bets[key];
     if (!v) return null;
     return (
       <div
-        className="absolute -bottom-1.5 -right-1.5 min-w-[26px] h-[22px] px-1.5 rounded-full bg-yellow-400 text-black text-[10px] font-black grid place-items-center border-2 border-yellow-700 shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
+        className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        data-testid={`bet-chip-${key}`}
+      >
+        <div className="min-w-[30px] h-[24px] px-2 rounded-full bg-yellow-400 text-black text-[11px] font-black grid place-items-center border-2 border-yellow-700 shadow-[0_2px_5px_rgba(0,0,0,0.6)]">
+          ₹{v}
+        </div>
+      </div>
+    );
+  };
+
+  // Chip that sits BELOW the number on straight-number bets.
+  const belowChip = (key) => {
+    const v = bets[key];
+    if (!v) return null;
+    return (
+      <div
+        className="mt-0.5 min-w-[26px] h-[18px] px-1.5 rounded-full bg-yellow-400 text-black text-[10px] font-black grid place-items-center border-2 border-yellow-700 shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
         data-testid={`bet-chip-${key}`}
       >
         ₹{v}
@@ -38,10 +55,10 @@ export default function RouletteTableGrid({ bets = {}, onPlace, disabled = false
         onClick={() => !disabled && onPlace(`straight_${n}`)}
         disabled={disabled}
         data-testid={`bet-straight-${n}`}
-        className={`relative aspect-[3/2] ${bg} ${winHighlight} border border-white/15 text-white font-heading font-bold text-sm md:text-base grid place-items-center transition-all disabled:opacity-70 disabled:cursor-not-allowed`}
+        className={`relative aspect-[3/2] ${bg} ${winHighlight} border border-white/15 text-white font-heading font-bold text-sm md:text-base flex flex-col items-center justify-center transition-all disabled:opacity-70 disabled:cursor-not-allowed`}
       >
-        {n}
-        {chip(`straight_${n}`)}
+        <span>{n}</span>
+        {belowChip(`straight_${n}`)}
       </button>
     );
   };
@@ -54,7 +71,7 @@ export default function RouletteTableGrid({ bets = {}, onPlace, disabled = false
       className={`relative py-3 md:py-4 border border-white/15 text-white font-heading font-bold text-xs md:text-sm hover:bg-white/5 transition-all disabled:opacity-70 disabled:cursor-not-allowed ${extraClass}`}
     >
       {label}
-      {chip(key)}
+      {centerChip(key)}
     </button>
   );
 
@@ -76,12 +93,12 @@ export default function RouletteTableGrid({ bets = {}, onPlace, disabled = false
             onClick={() => !disabled && onPlace("straight_0")}
             disabled={disabled}
             data-testid="bet-straight-0"
-            className={`relative aspect-[1/3] w-[38px] md:w-[46px] bg-emerald-600 hover:bg-emerald-500 border border-white/15 text-white font-heading font-black text-xl grid place-items-center transition-all disabled:opacity-70 disabled:cursor-not-allowed ${
+            className={`relative aspect-[1/3] w-[38px] md:w-[46px] bg-emerald-600 hover:bg-emerald-500 border border-white/15 text-white font-heading font-black text-xl flex flex-col items-center justify-center transition-all disabled:opacity-70 disabled:cursor-not-allowed ${
               resultNumber === 0 ? "ring-2 ring-yellow-300" : ""
             }`}
           >
-            0
-            {chip("straight_0")}
+            <span>0</span>
+            {belowChip("straight_0")}
           </button>
 
           {/* 3×12 grid */}
