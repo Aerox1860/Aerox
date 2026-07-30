@@ -322,7 +322,6 @@ export default function RouletteGame() {
                 bets={bets}
                 onPlace={placeBet}
                 onNumberSelect={handleNumberSelect}
-                onRemoveBetKey={removeBetKey}
                 disabled={!isBetting}
                 resultNumber={phase === "result" ? state?.result_number : null}
                 mode={mode}

@@ -17,26 +17,22 @@ export default function RouletteTableGrid({
   bets = {},
   onPlace,
   onNumberSelect,
-  onRemoveBetKey,
   disabled = false,
   resultNumber = null,
   mode = "straight",
   selectedNums = [],
 }) {
+  // Chip is display-only — pointer-events-none so clicks pass THROUGH to the underlying
+  // button (allowing multiple bets on Red/Black/Even/Odd/etc.). Removal is via Undo.
   const centerChip = (key) => {
     const v = bets[key];
     if (!v) return null;
     return (
       <div
-        className="absolute inset-0 flex items-center justify-center pointer-events-auto"
+        className="absolute inset-0 flex items-center justify-center pointer-events-none"
         data-testid={`bet-chip-${key}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (!disabled) onRemoveBetKey?.(key);
-        }}
-        title="Click to remove this bet"
       >
-        <div className="min-w-[30px] h-[24px] px-2 rounded-full bg-yellow-400 text-black text-[11px] font-black grid place-items-center border-2 border-yellow-700 shadow-[0_2px_5px_rgba(0,0,0,0.6)] hover:brightness-110 cursor-pointer">
+        <div className="min-w-[30px] h-[24px] px-2 rounded-full bg-yellow-400 text-black text-[11px] font-black grid place-items-center border-2 border-yellow-700 shadow-[0_2px_5px_rgba(0,0,0,0.6)]">
           ₹{v}
         </div>
       </div>
