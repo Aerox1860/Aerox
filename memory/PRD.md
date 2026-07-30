@@ -40,6 +40,13 @@ AeroX Crash is a real-time aviation "crash" style multiplayer game where players
 - Roulette lobby (`/games/roulette`) with 7 live tables: Hindi, Lightning, American, Mega Fire Blaze, Speed Sic Bo, Bucharest Quantum, Arabic
 - **Playable European Roulette engine** (2026-07-30) — `/games/roulette/:tableId` opens a real game with wooden wheel (exact 37-number European sequence), 20s betting → 8s spin → 4s result loop, ball animates to winning number, popup shows result. Bet types: straight (35:1), red/black/even/odd/low/high (1:1), dozens (3:1). Zero rule: only straight-0 wins on zero. Backend engine in `/app/backend/roulette.py` with routes `GET /api/roulette/state`, `POST /api/roulette/bet`, `GET /api/roulette/my-bets`, `GET /api/roulette/history`.
 
+### v1.4 additions (2026-07-30 — Client Design Match)
+- Table now has **dozens row (3:1)** and **columns row (2:1)** rendered below the number grid
+- **Column payout corrected to 2:1** (was 3:1) to match standard European roulette
+- Sidebar redesigned to match client mockup: chip icon card (`₹50 CHIP`), full-width UNDO card with count badge, full-width STAKE pill, yellow-bordered RED/BLACK/EVEN/ODD/1-18/19-36/1st-2nd-3rd 12 cards
+- Sidebar chip picker opens as a popover with denomination + rupee label
+- Both table and sidebar dozen buttons route to the SAME bet type (differentiated by `-side` suffix on testid)
+
 ### v1.3 additions (2026-07-30 — Vertical Board Redesign)
 - **Vertical roulette board layout** (0 at top spanning full width, then 12 rows of 1·2·3 / 4·5·6 / ... / 34·35·36)
 - **Right sidebar controls**: circular chip picker (opens ₹10-₹1000 popover), circular undo button (with count), stake pill, and outside bets (RED / BLACK / EVEN / ODD / 1-18 / 19-36 / 1st-2nd-3rd 12)

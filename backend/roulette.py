@@ -184,9 +184,9 @@ def profit_multiplier(bet_type: str) -> int:
         return 8
     if bet_type.startswith("six_line_"):
         return 5
-    if bet_type in ("dozen_1", "dozen_2", "dozen_3",
-                    "column_1", "column_2", "column_3"):
-        # dozens and column bets both pay 3:1 (per user's original spec).
+    if bet_type in ("column_1", "column_2", "column_3"):
+        return 2  # standard European roulette column payout
+    if bet_type in ("dozen_1", "dozen_2", "dozen_3"):
         return 3
     return 1  # red/black/even/odd/low/high
 

@@ -188,6 +188,9 @@ export const BET_LABELS = {
   dozen_1: "1st 12",
   dozen_2: "2nd 12",
   dozen_3: "3rd 12",
+  column_1: "1st Column",
+  column_2: "2nd Column",
+  column_3: "3rd Column",
 };
 
 export const PAYOUT_LABEL = {
@@ -215,6 +218,7 @@ export function profitMultClient(bt) {
   if (bt.startsWith("corner_")) return 8;
   if (bt.startsWith("six_line_")) return 5;
   if (bt.startsWith("dozen_")) return 3;
+  if (bt.startsWith("column_")) return 2;
   return 1;
 }
 
@@ -237,6 +241,9 @@ export function isWinnerClient(bt, num) {
   if (bt === "dozen_1") return num >= 1 && num <= 12;
   if (bt === "dozen_2") return num >= 13 && num <= 24;
   if (bt === "dozen_3") return num >= 25 && num <= 36;
+  if (bt === "column_1") return num % 3 === 1;
+  if (bt === "column_2") return num % 3 === 2;
+  if (bt === "column_3") return num !== 0 && num % 3 === 0;
   return false;
 }
 

@@ -460,23 +460,26 @@ function RecentResults({ history }) {
 }
 
 function BetSidebar({ bets, chip, setChip, onPlace, onUndo, undoCount, totalStake, disabled }) {
-  // A small bet button used inside the sidebar. Shows a chip badge when a bet is placed.
-  const SideBet = ({ betKey, label, extraClass = "" }) => {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Yellow-bordered card button that shows a chip badge overlay when the bet is active.
+  const SideBet = ({ betKey, label, sub, colorClass = "bg-emerald-800/60", testKey }) => {
     const v = bets[betKey];
     return (
       <button
         type="button"
         onClick={() => !disabled && onPlace(betKey)}
-        data-testid={`bet-${betKey}`}
-        className={`relative w-full py-2 px-2 rounded-md border border-yellow-500/30 bg-emerald-900/50 text-white text-[11px] font-heading font-bold text-center hover:bg-emerald-800/60 active:scale-95 transition-all ${
+        data-testid={`bet-${testKey || betKey}`}
+        className={`relative w-full py-2.5 px-2 rounded-lg border-2 border-yellow-500/50 ${colorClass} text-white font-heading font-black text-xs text-center hover:brightness-110 active:scale-95 transition-all ${
           disabled ? "opacity-60 pointer-events-none" : ""
-        } ${extraClass}`}
+        }`}
       >
         {label}
+        {sub && <div className="text-[9px] text-yellow-300/80 font-bold mt-0.5">{sub}</div>}
         {v > 0 && (
           <span
-            className="absolute -top-1.5 -right-1.5 min-w-[26px] h-[20px] px-1.5 rounded-full bg-yellow-400 text-black text-[9px] font-black grid place-items-center border-2 border-yellow-700"
-            data-testid={`bet-chip-${betKey}`}
+            className="absolute -top-1.5 -right-1.5 min-w-[28px] h-[22px] px-1.5 rounded-full bg-yellow-400 text-black text-[10px] font-black grid place-items-center border-2 border-yellow-700"
+            data-testid={`bet-chip-${testKey || betKey}`}
           >
             ₹{v}
           </span>
@@ -487,56 +490,120 @@ function BetSidebar({ bets, chip, setChip, onPlace, onUndo, undoCount, totalStak
 
   return (
     <div
-      className="w-[100px] md:w-[130px] shrink-0 flex flex-col gap-2"
+      className="w-[130px] md:w-[180px] shrink-0 flex flex-col gap-2"
       data-testid="bet-sidebar"
     >
-      {/* Chip picker + Undo row */}
-      <div className="flex flex-col items-center gap-2">
-        <ChipPicker chip={chip} onChange={setChip} />
+      {/* Chip picker CARD — clicking opens the popover */}
+      <div className="relative">
         <button
-          onClick={onUndo}
-          disabled={undoCount === 0}
-          data-testid="undo-bet-btn"
-          title={undoCount === 0 ? "No bets to undo" : `Undo last bet — ${undoCount}`}
-          className="relative w-12 h-12 rounded-full bg-red-500 text-white border-2 border-white/70 shadow-[0_4px_10px_rgba(0,0,0,0.4)] grid place-items-center hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          type="button"
+          onClick={() => setPickerOpen((v) => !v)}
+          data-testid="chip-picker-btn"
+          aria-expanded={pickerOpen}
+          className="w-full rounded-lg border-2 border-yellow-500/50 bg-black/60 py-2 px-2 flex items-center gap-2 hover:border-yellow-400 active:scale-[0.98] transition-all"
         >
-          <Undo2 className="w-5 h-5" />
-          {undoCount > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-yellow-400 text-black text-[10px] font-black grid place-items-center border border-yellow-700">
-              {undoCount}
-            </span>
-          )}
+          <ChipIcon value={chip} />
+          <div className="flex-1 text-left">
+            <div className="text-yellow-300 font-heading font-black text-sm md:text-base leading-tight">₹{chip}</div>
+            <div className="text-yellow-300/70 font-heading text-[10px] font-bold uppercase tracking-wider leading-none">Chip</div>
+          </div>
         </button>
+        {pickerOpen && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setPickerOpen(false)} data-testid="chip-picker-scrim" />
+            <div
+              className="absolute z-40 top-full left-0 right-0 mt-2 p-2 rounded-xl bg-slate-900 border-2 border-yellow-400/40 shadow-[0_10px_30px_rgba(0,0,0,0.55)] flex flex-col gap-1.5"
+              data-testid="chip-picker-menu"
+            >
+              {CHIP_VALUES.map((v) => (
+                <button
+                  key={v}
+                  onClick={() => { setChip(v); setPickerOpen(false); }}
+                  data-testid={`chip-${v}`}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg font-heading font-bold text-sm border-2 transition-all ${
+                    chip === v
+                      ? "bg-yellow-400 text-black border-yellow-200"
+                      : "bg-black/40 text-slate-200 border-white/10 hover:border-yellow-400/50 hover:bg-black/60"
+                  }`}
+                >
+                  <ChipIcon value={v} small />
+                  <span>₹{v}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Stake pill */}
-      <div className="bg-black/40 border border-yellow-400/30 rounded-md px-2 py-1 text-center">
-        <div className="text-[9px] uppercase tracking-wider text-slate-400 leading-none">Stake</div>
-        <div className="font-mono font-black text-sm text-yellow-300 leading-tight" data-testid="round-stake">
+      {/* UNDO — full-width card button */}
+      <button
+        type="button"
+        onClick={onUndo}
+        disabled={undoCount === 0}
+        data-testid="undo-bet-btn"
+        title={undoCount === 0 ? "No bets to undo" : `Undo last bet — ${undoCount}`}
+        className="relative w-full py-2.5 rounded-lg border-2 border-yellow-500/40 bg-black/50 text-white font-heading font-black text-sm flex items-center justify-center gap-2 hover:bg-black/70 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <Undo2 className="w-4 h-4" />
+        <span>UNDO</span>
+        {undoCount > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1.5 rounded-full bg-yellow-400 text-black text-[10px] font-black grid place-items-center border-2 border-yellow-700">
+            {undoCount}
+          </span>
+        )}
+      </button>
+
+      {/* STAKE — full-width card */}
+      <div className="w-full py-2 rounded-lg border-2 border-yellow-500/40 bg-black/50 text-center">
+        <span className="text-white font-heading font-black text-xs mr-1">STAKE</span>
+        <span className="text-yellow-300 font-mono font-black text-sm" data-testid="round-stake">
           ₹{totalStake.toFixed(0)}
-        </div>
+        </span>
       </div>
 
-      {/* Outside bets */}
+      {/* Even chances 2×3 grid */}
       <div className="grid grid-cols-2 gap-1.5">
-        <SideBet betKey="red" label="RED" extraClass="!bg-red-700/70 !border-red-300/50" />
-        <SideBet betKey="black" label="BLACK" extraClass="!bg-neutral-900 !border-white/40" />
+        <SideBet betKey="red" label="RED" colorClass="!bg-red-700/80" />
+        <SideBet betKey="black" label="BLACK" colorClass="!bg-neutral-900" />
         <SideBet betKey="even" label="EVEN" />
         <SideBet betKey="odd" label="ODD" />
-        <SideBet betKey="low" label="1–18" />
-        <SideBet betKey="high" label="19–36" />
+        <SideBet betKey="low" label="1-18" />
+        <SideBet betKey="high" label="19-36" />
       </div>
 
-      {/* Dozens (full-width buttons) */}
+      {/* Dozens — full-width */}
       <div className="flex flex-col gap-1.5">
-        <SideBet betKey="dozen_1" label="1st 12 · 3:1" />
-        <SideBet betKey="dozen_2" label="2nd 12 · 3:1" />
-        <SideBet betKey="dozen_3" label="3rd 12 · 3:1" />
+        <SideBet betKey="dozen_1" label="1st 12" sub="(3:1)" testKey="dozen_1-side" />
+        <SideBet betKey="dozen_2" label="2nd 12" sub="(3:1)" testKey="dozen_2-side" />
+        <SideBet betKey="dozen_3" label="3rd 12" sub="(3:1)" testKey="dozen_3-side" />
       </div>
     </div>
   );
 }
 
+// Little casino-chip icon (SVG). Yellow ring with denomination in the middle.
+function ChipIcon({ value, small = false }) {
+  const size = small ? 26 : 36;
+  return (
+    <svg
+      width={size} height={size}
+      viewBox="0 0 40 40"
+      className="shrink-0"
+      aria-hidden
+    >
+      <circle cx="20" cy="20" r="18" fill="#facc15" stroke="#78350f" strokeWidth="2" />
+      <circle cx="20" cy="20" r="12" fill="#facc15" stroke="#78350f" strokeWidth="1" strokeDasharray="3 2" />
+      <text
+        x="20" y="21" textAnchor="middle" dominantBaseline="middle"
+        fill="#78350f" fontSize={value >= 1000 ? 8 : value >= 100 ? 10 : 12} fontWeight="900"
+      >
+        {value}
+      </text>
+    </svg>
+  );
+}
+
+// Legacy standalone ChipPicker retained for reference — not used anymore.
 function ChipPicker({ chip, onChange }) {
   const [open, setOpen] = useState(false);
   return (
