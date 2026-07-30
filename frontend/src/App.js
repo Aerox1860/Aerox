@@ -26,6 +26,7 @@ import AdminSupport from "@/pages/admin/Support";
 import PlayerLayout from "@/components/PlayerLayout";
 import ChangePassword from "@/pages/ChangePassword";
 import Support from "@/pages/Support";
+import Games from "@/pages/Games";
 
 // Host-based routing:
 // - Hosts containing "admin" (e.g. admin.gowin365x.com or gowin365xadmin.com) → admin-only app
@@ -92,6 +93,7 @@ function AppRoutes() {
         <Route path="/admin/*" element={<Navigate to="/login" replace />} />
         <Route path="/" element={<Protected><PlayerLayout /></Protected>}>
           <Route index element={<Lobby />} />
+          <Route path="games" element={<Games />} />
           <Route path="game" element={<Game />} />
           <Route path="wallet" element={<Wallet />} />
           <Route path="deposit" element={<Deposit />} />
@@ -116,6 +118,7 @@ function AppRoutes() {
 
       <Route path="/" element={<Protected><PlayerLayout /></Protected>}>
         <Route index element={<Lobby />} />
+        <Route path="games" element={<Games />} />
         <Route path="game" element={<Game />} />
         <Route path="wallet" element={<Wallet />} />
         <Route path="deposit" element={<Deposit />} />

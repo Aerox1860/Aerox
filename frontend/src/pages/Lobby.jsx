@@ -65,11 +65,14 @@ export default function Lobby() {
             <StatCard icon={TrendingUp} label="Last crash" value={history[0]?.crash_at ? history[0].crash_at.toFixed(2) + "x" : "-"} mono />
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Link to="/game" data-testid="join-game-btn" className="btn-primary px-5 py-3 rounded-xl flex items-center gap-2">
-              <Play className="w-4 h-4" /> Join round
+            <Link to="/games" data-testid="browse-games-btn" className="btn-primary px-5 py-3 rounded-xl flex items-center gap-2">
+              <Play className="w-4 h-4" /> Browse games
+            </Link>
+            <Link to="/game" data-testid="join-game-btn" className="btn-cyan px-5 py-3 rounded-xl flex items-center gap-2">
+              <Plane className="w-4 h-4" /> Play AeroX
             </Link>
             <button onClick={claimDaily} className="btn-ghost px-5 py-3 rounded-xl flex items-center gap-2" data-testid="claim-daily-btn">
-              <Gift className="w-4 h-4 text-green-400" /> Claim daily bonus
+              <Gift className="w-4 h-4 text-green-400" /> Daily bonus
             </button>
             <ContactUsButton className="!px-5 !py-3" />
           </div>
