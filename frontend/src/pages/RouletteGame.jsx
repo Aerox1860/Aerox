@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useParams, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Timer, Coins, X, TrendingUp, History, RotateCcw } from "lucide-react";
+import { ArrowLeft, Timer, X, TrendingUp, History, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";

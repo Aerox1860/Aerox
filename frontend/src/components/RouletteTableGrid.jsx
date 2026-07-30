@@ -26,20 +26,6 @@ export default function RouletteTableGrid({ bets = {}, onPlace, disabled = false
     );
   };
 
-  // Chip that sits BELOW the number on straight-number bets.
-  const belowChip = (key) => {
-    const v = bets[key];
-    if (!v) return null;
-    return (
-      <div
-        className="mt-0.5 min-w-[26px] h-[18px] px-1.5 rounded-full bg-yellow-400 text-black text-[10px] font-black grid place-items-center border-2 border-yellow-700 shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
-        data-testid={`bet-chip-${key}`}
-      >
-        ₹{v}
-      </div>
-    );
-  };
-
   const numCell = (n) => {
     const c = colorOf(n);
     const bg =
