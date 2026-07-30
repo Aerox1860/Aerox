@@ -288,11 +288,13 @@ export default function RouletteGame() {
 }
 
 function PhaseTimer({ phase, seconds }) {
-  const label = phase === "betting" ? "Place Bets" : phase === "spinning" ? "Spinning…" : "Result";
+  // If betting timer has hit 0 but server hasn't reported "spinning" yet, show a transitional label
+  const effectivePhase = phase === "betting" && seconds === 0 ? "spinning" : phase;
+  const label = effectivePhase === "betting" ? "Place Bets" : effectivePhase === "spinning" ? "Spinning…" : "Result";
   const color =
-    phase === "betting"
+    effectivePhase === "betting"
       ? "text-green-300 border-green-400/50 bg-green-500/10"
-      : phase === "spinning"
+      : effectivePhase === "spinning"
       ? "text-yellow-300 border-yellow-400/50 bg-yellow-500/10"
       : "text-red-300 border-red-400/50 bg-red-500/10";
   return (
