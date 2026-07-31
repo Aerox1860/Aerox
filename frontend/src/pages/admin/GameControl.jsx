@@ -1,21 +1,42 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Save, Play, Pause } from "lucide-react";
+import { Save, Play, Pause, Wrench, Sparkles, Plane, Disc } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
+
+const BIAS_OPTIONS = [
+  { id: "normal",     label: "Normal",     desc: "Provably-fair, standard house edge", color: "text-emerald-300", border: "border-emerald-400/60" },
+  { id: "aggressive", label: "Aggressive", desc: "~70% rounds crash below 2.0x",       color: "text-amber-300",   border: "border-amber-400/60"  },
+  { id: "ruthless",   label: "Ruthless",   desc: "~90% below 2.0x, capped near 3x",    color: "text-red-300",     border: "border-red-500/60"    },
+];
 
 export default function AdminGameControl() {
   const [dash, setDash] = useState(null);
   const [edge, setEdge] = useState("0.03");
+  const [gs, setGs] = useState({ crash: true, roulette: true, bias_mode: "normal" });
 
-  const load = () => api.get("/admin/dashboard").then(({ data }) => setDash(data));
-  useEffect(() => { load(); const t = setInterval(load, 3000); return () => clearInterval(t); }, []);
+  const loadDash = () => api.get("/admin/dashboard").then(({ data }) => setDash(data));
+  const loadGs   = () => api.get("/admin/games/status").then(({ data }) => setGs(data));
 
-  const save = async () => {
-    try { await api.post("/admin/game/config", { house_edge: Number(edge) }); toast.success("Saved"); }
+  useEffect(() => {
+    loadDash(); loadGs();
+    const t = setInterval(loadDash, 3000);
+    return () => clearInterval(t);
+  }, []);
+
+  const saveEdge = async () => {
+    try { await api.post("/admin/game/config", { house_edge: Number(edge) }); toast.success("House edge saved"); }
     catch (e) { toast.error(formatApiError(e)); }
   };
-  const toggle = async () => {
-    try { await api.post("/admin/game/config", { paused: !dash.paused }); toast.success("Updated"); load(); }
+  const togglePause = async () => {
+    try { await api.post("/admin/game/config", { paused: !dash.paused }); toast.success(dash.paused ? "Round resumed" : "Round paused"); loadDash(); }
+    catch (e) { toast.error(formatApiError(e)); }
+  };
+  const setBias = async (mode) => {
+    try { await api.post("/admin/game/config", { bias_mode: mode }); toast.success(`Bias set: ${mode}`); loadGs(); }
+    catch (e) { toast.error(formatApiError(e)); }
+  };
+  const toggleGame = async (game, next) => {
+    try { await api.post("/admin/games/toggle", { game, enabled: next }); toast.success(`${game} ${next ? "back online" : "set to maintenance"}`); loadGs(); }
     catch (e) { toast.error(formatApiError(e)); }
   };
 
@@ -25,6 +46,7 @@ export default function AdminGameControl() {
     <div className="space-y-5" data-testid="admin-game">
       <h1 className="font-heading text-3xl font-black">Game Control</h1>
 
+      {/* Live round card */}
       <div className="card-surface p-6">
         <div className="flex items-center justify-between">
           <div>
@@ -32,20 +54,89 @@ export default function AdminGameControl() {
             <div className="font-mono text-3xl font-bold neon-cyan mt-1">{dash.current_round?.multiplier?.toFixed(2)}x</div>
             <div className="text-sm text-slate-400 mt-1 capitalize">Status: {dash.current_round?.status} • {dash.current_round?.players} players</div>
           </div>
-          <button onClick={toggle} className={`px-5 py-3 rounded-xl flex items-center gap-2 ${dash.paused ? "btn-primary" : "btn-danger"}`} data-testid="admin-game-toggle-btn">
+          <button onClick={togglePause}
+            className={`px-5 py-3 rounded-xl flex items-center gap-2 ${dash.paused ? "btn-primary" : "btn-danger"}`}
+            data-testid="admin-game-toggle-btn">
             {dash.paused ? <><Play className="w-4 h-4" /> Resume</> : <><Pause className="w-4 h-4" /> Pause</>}
           </button>
         </div>
       </div>
 
+      {/* Maintenance toggles */}
+      <div className="card-surface p-6 space-y-4" data-testid="maintenance-panel">
+        <div className="flex items-center gap-2">
+          <Wrench className="w-4 h-4 text-yellow-300" />
+          <div className="font-heading font-bold">Maintenance Mode</div>
+        </div>
+        <p className="text-sm text-slate-400">Turn a game OFF to show players an <span className="text-yellow-300">Under Maintenance</span> screen. Bets are blocked while off.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <MaintCard id="crash"    label="AeroX Crash" icon={Plane} enabled={gs.crash}    onToggle={(v) => toggleGame("crash", v)} />
+          <MaintCard id="roulette" label="Roulette"    icon={Disc}  enabled={gs.roulette} onToggle={(v) => toggleGame("roulette", v)} />
+        </div>
+      </div>
+
+      {/* Crash Bias */}
+      <div className="card-surface p-6 space-y-4" data-testid="bias-panel">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-fuchsia-300" />
+          <div className="font-heading font-bold">Crash Bias Mode</div>
+        </div>
+        <p className="text-sm text-slate-400">Controls the crash-point distribution. Higher bias = users lose more often, house wins more.</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {BIAS_OPTIONS.map((o) => {
+            const active = gs.bias_mode === o.id;
+            return (
+              <button
+                key={o.id}
+                onClick={() => setBias(o.id)}
+                data-testid={`bias-${o.id}-btn`}
+                className={`text-left p-4 rounded-xl border transition ${active ? `bg-white/5 ${o.border}` : "border-white/10 hover:border-white/20"}`}
+              >
+                <div className={`text-sm font-bold uppercase tracking-wider ${active ? o.color : "text-slate-200"}`}>{o.label}</div>
+                <div className="text-xs text-slate-400 mt-1">{o.desc}</div>
+                {active && <div className="mt-2 text-[10px] text-slate-500">● Active</div>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* House edge */}
       <div className="card-surface p-6 space-y-3">
         <div className="font-heading font-bold">RTP / house edge</div>
-        <p className="text-sm text-slate-400">A higher house edge means lower average crash points (favor for house). Typical: 0.02 – 0.05.</p>
+        <p className="text-sm text-slate-400">Only used in <span className="text-emerald-300">Normal</span> bias mode. Typical: 0.02 – 0.05.</p>
         <div className="flex gap-2 items-center">
           <input type="number" step="0.01" min="0" max="0.2" value={edge} onChange={(e) => setEdge(e.target.value)}
             className="bg-[#06090F] border border-white/10 rounded-lg px-3 py-2 font-mono outline-none focus:border-cyan-500 w-40" data-testid="house-edge-input" />
-          <button onClick={save} className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2" data-testid="house-edge-save-btn"><Save className="w-4 h-4" /> Save</button>
+          <button onClick={saveEdge} className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2" data-testid="house-edge-save-btn"><Save className="w-4 h-4" /> Save</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MaintCard({ id, label, icon: Icon, enabled, onToggle }) {
+  return (
+    <div className={`p-4 rounded-xl border ${enabled ? "border-emerald-500/40 bg-emerald-500/5" : "border-red-500/40 bg-red-500/5"}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${enabled ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
+            <Icon className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="font-bold">{label}</div>
+            <div className={`text-[11px] uppercase tracking-widest ${enabled ? "text-emerald-300" : "text-red-300"}`}>
+              {enabled ? "● Online" : "● Maintenance"}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={() => onToggle(!enabled)}
+          data-testid={`maintenance-toggle-${id}`}
+          className={`px-4 py-2 rounded-lg text-xs font-bold ${enabled ? "btn-danger" : "btn-primary"}`}
+        >
+          {enabled ? "Set Maintenance" : "Bring Online"}
+        </button>
       </div>
     </div>
   );

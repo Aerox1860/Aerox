@@ -87,6 +87,8 @@ AeroX Crash is a real-time aviation "crash" style multiplayer game where players
 - Withdrawals queue: mark paid or reject (refunds balance)
 - UPI/QR CRUD (multi-configurable)
 - Game control: pause/resume + house edge tuning
+- **Maintenance Mode toggle (Feb 2026)**: per-game ON/OFF for Crash and Roulette. Disabled game -> `/games/status=false`, bet API 503, users see "Under Maintenance" screen; both engine loops idle while off.
+- **Crash Bias Mode (Feb 2026)**: admin selects `normal` / `aggressive` / `ruthless`. Aggressive → ~70% rounds crash <2x; Ruthless → ~90% <2x with cap ≈3x. Value persisted in `settings` collection.
 - Reports: top winners, recent rounds
 
 ## Prioritized Backlog / P0/P1/P2

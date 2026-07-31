@@ -38,6 +38,8 @@ DAILY_BONUS = float(os.environ.get('DAILY_BONUS', '10'))
 DEPOSIT_BONUS_PCT = float(os.environ.get('DEPOSIT_BONUS_PCT', '5'))
 REFERRAL_BONUS = float(os.environ.get('REFERRAL_BONUS', '25'))
 HOUSE_EDGE = float(os.environ.get('CRASH_HOUSE_EDGE', '0.03'))
+BIAS_MODE = os.environ.get('CRASH_BIAS_MODE', 'normal')  # normal | aggressive | ruthless
+GAMES_STATUS: Dict[str, bool] = {"crash": True, "roulette": True}
 
 # --------------------- Object Storage ---------------------
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
@@ -262,6 +264,12 @@ class ChatIn(BaseModel):
 class GameConfigIn(BaseModel):
     house_edge: Optional[float] = None
     paused: Optional[bool] = None
+    bias_mode: Optional[str] = None  # normal | aggressive | ruthless
+
+
+class GameToggleIn(BaseModel):
+    game: str = Field(min_length=1)  # "crash" | "roulette"
+    enabled: bool
 
 
 # --------------------- Startup: indexes + seed ---------------------
@@ -307,6 +315,21 @@ async def startup():
     await db.support_tickets.create_index("user_id")
     await db.support_tickets.create_index("created_at")
     await db.support_files.create_index("id")
+    await db.settings.create_index("key", unique=True)
+    # Load persisted settings
+    global BIAS_MODE
+    try:
+        s_bias = await db.settings.find_one({"key": "crash_bias_mode"})
+        if s_bias and s_bias.get("value") in ("normal", "aggressive", "ruthless"):
+            BIAS_MODE = s_bias["value"]
+        s_games = await db.settings.find_one({"key": "games_status"})
+        if s_games and isinstance(s_games.get("value"), dict):
+            for k in ("crash", "roulette"):
+                if k in s_games["value"]:
+                    GAMES_STATUS[k] = bool(s_games["value"][k])
+        logger.info(f"Settings loaded: bias_mode={BIAS_MODE} games={GAMES_STATUS}")
+    except Exception as e:
+        logger.warning(f"Settings load failed: {e}")
     await seed_admin()
     # Init storage in background (non-blocking)
     try:
@@ -897,12 +920,51 @@ async def admin_temp_password(body: TempPasswordIn, admin: dict = Depends(admin_
 
 @api.post("/admin/game/config")
 async def admin_game_config(body: GameConfigIn, _: dict = Depends(admin_only)):
-    global HOUSE_EDGE
+    global HOUSE_EDGE, BIAS_MODE
     if body.house_edge is not None:
         HOUSE_EDGE = float(body.house_edge)
     if body.paused is not None:
         game_state["paused"] = bool(body.paused)
-    return {"house_edge": HOUSE_EDGE, "paused": game_state.get("paused", False)}
+    if body.bias_mode is not None:
+        mode = str(body.bias_mode).lower().strip()
+        if mode not in ("normal", "aggressive", "ruthless"):
+            raise HTTPException(400, "bias_mode must be one of normal|aggressive|ruthless")
+        BIAS_MODE = mode
+        await db.settings.update_one(
+            {"key": "crash_bias_mode"},
+            {"$set": {"key": "crash_bias_mode", "value": mode}},
+            upsert=True,
+        )
+    return {"house_edge": HOUSE_EDGE, "paused": game_state.get("paused", False), "bias_mode": BIAS_MODE}
+
+
+@api.get("/games/status")
+async def public_games_status():
+    return {"crash": bool(GAMES_STATUS.get("crash", True)), "roulette": bool(GAMES_STATUS.get("roulette", True))}
+
+
+@api.get("/admin/games/status")
+async def admin_games_status(_: dict = Depends(admin_only)):
+    return {
+        "crash": bool(GAMES_STATUS.get("crash", True)),
+        "roulette": bool(GAMES_STATUS.get("roulette", True)),
+        "bias_mode": BIAS_MODE,
+    }
+
+
+@api.post("/admin/games/toggle")
+async def admin_games_toggle(body: GameToggleIn, _: dict = Depends(admin_only)):
+    game = body.game.lower().strip()
+    if game not in ("crash", "roulette"):
+        raise HTTPException(400, "game must be 'crash' or 'roulette'")
+    GAMES_STATUS[game] = bool(body.enabled)
+    await db.settings.update_one(
+        {"key": "games_status"},
+        {"$set": {"key": "games_status", "value": dict(GAMES_STATUS)}},
+        upsert=True,
+    )
+    logger.info(f"Admin toggled {game} -> {'ENABLED' if body.enabled else 'MAINTENANCE'}")
+    return {"ok": True, "crash": GAMES_STATUS["crash"], "roulette": GAMES_STATUS["roulette"]}
 
 
 @api.get("/admin/reports")
@@ -967,16 +1029,42 @@ class Hub:
 hub = Hub()
 
 
-def compute_crash_point(server_seed: str, client_seed: str, house_edge: float) -> float:
+def compute_crash_point(server_seed: str, client_seed: str, house_edge: float, bias_mode: str = "normal") -> float:
     # Provably-fair crash: hash server_seed:client_seed, use first 8 hex chars
     h = hashlib.sha256(f"{server_seed}:{client_seed}".encode()).hexdigest()
     n = int(h[:13], 16)  # 52-bit int
-    # Bust check
+    e = 2 ** 52
+    # Uniform (0..1) derived from hash — deterministic for a given seed pair
+    r = n / e  # 0 <= r < 1
+    # r2 is a second independent-ish uniform derived from another slice
+    r2 = int(h[13:26], 16) / e
+    mode = (bias_mode or "normal").lower()
+
+    if mode == "aggressive":
+        # ~70% <2x, ~20% 2-5x, ~10% >5x, hard cap 20x
+        if r2 < 0.70:
+            m = 1.01 + r * 0.99            # 1.01 - 2.00
+        elif r2 < 0.90:
+            m = 2.00 + r * 3.00            # 2.00 - 5.00
+        else:
+            m = 5.00 + r * 15.00           # 5.00 - 20.00
+        return max(1.0, round(m, 2))
+
+    if mode == "ruthless":
+        # ~90% <2x, cap ~3x; heavy bias to 1.05-1.9x
+        # 5% instant bust
+        if int(h[26:28], 16) % 20 == 0:
+            return 1.00
+        if r2 < 0.90:
+            m = 1.05 + r * 0.85            # 1.05 - 1.90
+        else:
+            m = 1.90 + r * 1.10            # 1.90 - 3.00
+        return max(1.0, round(m, 2))
+
+    # Normal (provably fair) — original logic
     # 1% instant bust chance based on hash
     if (int(h[13:15], 16) % 33) == 0:
         return 1.00
-    # Compute multiplier: (100 - houseEdge*100) / (1 - r) style
-    e = 2 ** 52
     return max(1.0, math.floor((100 * e - n) / (e - n)) / 100)
 
 
@@ -984,7 +1072,7 @@ async def game_loop():
     logger.info("Game loop started")
     while True:
         try:
-            if game_state.get("paused"):
+            if game_state.get("paused") or not GAMES_STATUS.get("crash", True):
                 await asyncio.sleep(2)
                 continue
             await run_one_round()
@@ -998,7 +1086,7 @@ async def run_one_round():
     server_seed = secrets.token_hex(16)
     server_seed_hash = hashlib.sha256(server_seed.encode()).hexdigest()
     client_seed = secrets.token_hex(8)
-    crash_at = compute_crash_point(server_seed, client_seed, HOUSE_EDGE)
+    crash_at = compute_crash_point(server_seed, client_seed, HOUSE_EDGE, BIAS_MODE)
     round_id = str(uuid.uuid4())
 
     game_state.update({
@@ -1147,6 +1235,8 @@ async def game_state_api():
 
 @api.post("/game/bet")
 async def place_bet(body: BetIn, user: dict = Depends(current_user)):
+    if not GAMES_STATUS.get("crash", True):
+        raise HTTPException(status_code=503, detail="Crash is under maintenance")
     if game_state["status"] != "waiting":
         raise HTTPException(status_code=400, detail="Betting is closed")
     if user["id"] in game_state["bets"]:
@@ -1372,7 +1462,9 @@ app.include_router(api)
 
 # ------------- Roulette module -------------
 from roulette import build_router as _build_roulette
-_roulette_router, _roulette_loop = _build_roulette(db, credit, debit, current_user)
+def _is_roulette_enabled() -> bool:
+    return bool(GAMES_STATUS.get("roulette", True))
+_roulette_router, _roulette_loop = _build_roulette(db, credit, debit, current_user, _is_roulette_enabled)
 app.include_router(_roulette_router)
 
 app.add_middleware(

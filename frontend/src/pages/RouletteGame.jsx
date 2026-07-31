@@ -9,6 +9,8 @@ import { CHIP_VALUES, colorOf, profitMultClient, isWinnerClient, labelForBet } f
 import { rouletteTables } from "@/pages/RouletteLobby";
 import RouletteWheel from "@/components/RouletteWheel";
 import RouletteTableGrid from "@/components/RouletteTableGrid";
+import MaintenanceScreen from "@/components/MaintenanceScreen";
+import { useGamesStatus } from "@/lib/useGamesStatus";
 
 const POLL_MS = 700;
 
@@ -16,6 +18,7 @@ export default function RouletteGame() {
   const { tableId } = useParams();
   const table = rouletteTables.find((t) => t.id === tableId);
   const { user, refresh } = useAuth();
+  const gs = useGamesStatus();
 
   const [state, setState] = useState(null);          // {phase, phase_end, result_number, history, ...}
   const [bets, setBets] = useState({});              // roundId -> {betKey: amount}
@@ -97,6 +100,9 @@ export default function RouletteGame() {
   }, []);
 
   if (!table) return <Navigate to="/games/roulette" replace />;
+  if (gs.ready && gs.roulette === false) {
+    return <MaintenanceScreen gameName={`Roulette — ${table.name}`} backTo="/games/roulette" />;
+  }
 
   // ─────────── Client-side round state machine ───────────
   // The server drives round transitions via `phase` + `phase_end` (ISO timestamp).

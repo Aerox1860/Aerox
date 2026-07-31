@@ -243,20 +243,31 @@ class BetIn(BaseModel):
     amount: float = Field(gt=0)
 
 
-def build_router(db, credit_fn, debit_fn, current_user_dep):
+def build_router(db, credit_fn, debit_fn, current_user_dep, is_enabled_fn=None):
     """Attach roulette routes and start the round loop.
 
     db                : Motor async DB
     credit_fn         : async (user_id, amount, ttype, note, ref) -> None
     debit_fn          : async (user_id, amount, ttype, note, ref) -> None
     current_user_dep  : FastAPI dependency callable that resolves the current user
+    is_enabled_fn     : optional callable() -> bool. When it returns False the
+                        round loop pauses and bets are rejected (maintenance).
     """
     router = APIRouter(prefix="/api/roulette")
+
+    def _enabled() -> bool:
+        try:
+            return True if is_enabled_fn is None else bool(is_enabled_fn())
+        except Exception:
+            return True
 
     async def _round_loop():
         await asyncio.sleep(1)  # let app boot
         while True:
             try:
+                if not _enabled():
+                    await asyncio.sleep(2)
+                    continue
                 await _run_one_round()
             except Exception as e:  # noqa: BLE001
                 logger.exception(f"roulette round crashed: {e}")
@@ -385,11 +396,14 @@ def build_router(db, credit_fn, debit_fn, current_user_dep):
             "wheel_order": WHEEL_ORDER,
             "min_bet": MIN_BET,
             "max_bet": MAX_BET,
+            "enabled": _enabled(),
             "server_time": iso(now_utc()),
         }
 
     @router.post("/bet")
     async def place_bet(body: BetIn, user: dict = Depends(current_user_dep)):
+        if not _enabled():
+            raise HTTPException(503, "Roulette is under maintenance")
         if STATE["phase"] != "betting":
             raise HTTPException(400, "Betting is closed for this round")
         if not validate_bet_type(body.bet_type):

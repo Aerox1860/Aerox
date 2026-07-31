@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Users, Zap, Flame, Crown, Dice5, Sparkles, Orbit } from "lucide-react";
+import MaintenanceScreen from "@/components/MaintenanceScreen";
+import { useGamesStatus } from "@/lib/useGamesStatus";
 
 const tables = [
   {
@@ -104,6 +106,10 @@ const tables = [
 ];
 
 export default function RouletteLobby() {
+  const gs = useGamesStatus();
+  if (gs.ready && gs.roulette === false) {
+    return <MaintenanceScreen gameName="Roulette" backTo="/games" />;
+  }
   return (
     <div className="space-y-6" data-testid="roulette-lobby-page">
       <div className="flex items-center justify-between gap-3">

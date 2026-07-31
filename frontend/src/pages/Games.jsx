@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { Plane, Bomb, Dices, Disc, TrendingDown, CircleDot, Grid3x3, Spade, Sparkles, Lock, Play } from "lucide-react";
+import { Plane, Bomb, Dices, Disc, TrendingDown, CircleDot, Grid3x3, Spade, Sparkles, Lock, Play, Wrench } from "lucide-react";
+import { useGamesStatus } from "@/lib/useGamesStatus";
 
 const games = [
   {
@@ -25,6 +26,7 @@ const games = [
 ];
 
 export default function Games() {
+  const gs = useGamesStatus();
   return (
     <div className="space-y-6" data-testid="games-page">
       <div>
@@ -33,15 +35,16 @@ export default function Games() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4" data-testid="games-grid">
-        {games.map((g) => <GameCard key={g.id} game={g} />)}
+        {games.map((g) => <GameCard key={g.id} game={g} maintenance={gs.ready && gs[g.id] === false} />)}
       </div>
     </div>
   );
 }
 
-function GameCard({ game }) {
+function GameCard({ game, maintenance = false }) {
   const Icon = game.icon;
   const live = game.status === "live";
+  const underMaint = live && maintenance;
 
   const inner = (
     <div className="relative h-full">
@@ -54,9 +57,15 @@ function GameCard({ game }) {
           <Icon className="w-16 h-16 md:w-20 md:h-20 text-white/95 drop-shadow-[0_0_20px_rgba(255,255,255,0.35)]" strokeWidth={1.6} />
         </div>
         {live ? (
-          <span className="absolute top-2 left-2 chip !bg-black/50 !border-green-400/60 !text-green-300 text-[10px] uppercase">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Live
-          </span>
+          underMaint ? (
+            <span className="absolute top-2 left-2 chip !bg-black/60 !border-yellow-400/60 !text-yellow-300 text-[10px] uppercase">
+              <Wrench className="w-3 h-3" /> Maintenance
+            </span>
+          ) : (
+            <span className="absolute top-2 left-2 chip !bg-black/50 !border-green-400/60 !text-green-300 text-[10px] uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Live
+            </span>
+          )
         ) : (
           <span className="absolute top-2 left-2 chip !bg-black/60 !border-white/20 !text-slate-200 text-[10px] uppercase">
             <Lock className="w-3 h-3" /> Soon
@@ -75,9 +84,15 @@ function GameCard({ game }) {
             ))}
           </div>
           {live ? (
-            <span className={`inline-flex items-center gap-1 text-xs font-semibold ${game.accent || "text-cyan-300"}`}>
-              <Play className="w-3 h-3" /> Play
-            </span>
+            underMaint ? (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-300">
+                <Wrench className="w-3 h-3" /> Maintenance
+              </span>
+            ) : (
+              <span className={`inline-flex items-center gap-1 text-xs font-semibold ${game.accent || "text-cyan-300"}`}>
+                <Play className="w-3 h-3" /> Play
+              </span>
+            )
           ) : (
             <span className="text-[10px] text-slate-500">Coming soon</span>
           )}
@@ -86,7 +101,7 @@ function GameCard({ game }) {
     </div>
   );
 
-  if (live && game.to) {
+  if (live && game.to && !underMaint) {
     return (
       <Link to={game.to} data-testid={`game-card-${game.id}`}
         className="card-surface overflow-hidden hover:border-cyan-500/50 transition-all hover:-translate-y-0.5 hover:shadow-[0_0_25px_rgba(34,211,238,0.15)]">
@@ -96,7 +111,7 @@ function GameCard({ game }) {
   }
   return (
     <div data-testid={`game-card-${game.id}`}
-      className="card-surface overflow-hidden opacity-80 grayscale-[0.2] cursor-not-allowed">
+      className={`card-surface overflow-hidden cursor-not-allowed ${underMaint ? "opacity-90 border-yellow-400/30" : "opacity-80 grayscale-[0.2]"}`}>
       {inner}
     </div>
   );

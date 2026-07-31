@@ -5,11 +5,14 @@ import { toast } from "sonner";
 import { api, formatApiError, wsUrl } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { primeAudio, startEngine, stopEngine, pitchEngine, playCrash, playCashout, playBet, playTick, playGo, setMuted, getMuted } from "@/lib/sounds";
+import MaintenanceScreen from "@/components/MaintenanceScreen";
+import { useGamesStatus } from "@/lib/useGamesStatus";
 
 const CHIP_AMOUNTS = [10, 50, 100, 500, 1000];
 
 export default function Game() {
   const { user, refresh } = useAuth();
+  const gs = useGamesStatus();
   const [state, setState] = useState({ status: "waiting", multiplier: 1.0, bets: [], history: [], round_id: null });
   const [countdown, setCountdown] = useState(null);
   const [amount, setAmount] = useState(50);
@@ -177,6 +180,10 @@ export default function Game() {
   const isFlying = state.status === "flying";
   const canBet = state.status === "waiting" && (!myBet || myBet.round_id !== state.round_id);
   const canCashout = isFlying && myBet && myBet.round_id === state.round_id && myBet.status === "active";
+
+  if (gs.ready && gs.crash === false) {
+    return <MaintenanceScreen gameName="AeroX Crash" backTo="/games" />;
+  }
 
   return (
     <div className="grid lg:grid-cols-[1fr,320px] gap-4" data-testid="game-page">
