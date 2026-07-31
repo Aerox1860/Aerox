@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 const AuthCtx = createContext(null);
 
@@ -41,6 +42,23 @@ export function AuthProvider({ children }) {
     refresh();
     return () => { mountedRef.current = false; };
   }, [refresh]);
+
+  // Single-session enforcement: when the backend evicts this device
+  // (a fresh login happened elsewhere), the axios interceptor fires this event.
+  useEffect(() => {
+    const onKicked = () => {
+      setUser(null);
+      toast.error("You were signed out — this account signed in from another device.");
+      const path = window.location.pathname;
+      const isLogin = path === "/login" || path === "/admin/login" || path === "/register";
+      if (!isLogin) {
+        const target = path.startsWith("/admin") ? "/admin/login" : "/login";
+        window.location.replace(target);
+      }
+    };
+    window.addEventListener("aerox:session-invalidated", onKicked);
+    return () => window.removeEventListener("aerox:session-invalidated", onKicked);
+  }, []);
 
   // Poll while a user is logged in + on tab focus / visibility change
   useEffect(() => {

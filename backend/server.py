@@ -121,10 +121,11 @@ def verify_password(pw: str, hashed: str) -> bool:
     except Exception:
         return False
 
-def make_token(user_id: str, role: str) -> str:
+def make_token(user_id: str, role: str, session_id: str) -> str:
     payload = {
         "sub": user_id,
         "role": role,
+        "sid": session_id,
         "exp": now_utc() + timedelta(hours=JWT_EXP_HOURS),
         "iat": now_utc(),
     }
@@ -182,6 +183,14 @@ async def current_user(cred: Optional[HTTPAuthorizationCredentials] = Depends(se
         raise HTTPException(status_code=401, detail="User not found")
     if user.get("is_blocked"):
         raise HTTPException(status_code=403, detail="Account blocked")
+    # Single-session enforcement: token's sid must match current sid on user doc.
+    token_sid = payload.get("sid")
+    user_sid = user.get("session_id")
+    if user_sid and token_sid and user_sid != token_sid:
+        raise HTTPException(
+            status_code=401,
+            detail="SESSION_INVALIDATED: Your account was signed in from another device.",
+        )
     return user
 
 async def admin_only(user: dict = Depends(current_user)) -> dict:
@@ -391,6 +400,7 @@ async def register(body: RegisterIn):
 
     uid = str(uuid.uuid4())
     agreed_at = iso(now_utc())
+    session_id = str(uuid.uuid4())
     user = {
         "id": uid,
         "email": email,
@@ -406,6 +416,7 @@ async def register(body: RegisterIn):
         "age_confirmed": True,
         "policy_agreed": True,
         "policy_agreed_at": agreed_at,
+        "session_id": session_id,
     }
     await db.users.insert_one(user)
     await add_transaction(uid, "bonus", SIGNUP_BONUS, "Signup bonus")
@@ -414,7 +425,7 @@ async def register(body: RegisterIn):
     if referred_by:
         await credit(referred_by, REFERRAL_BONUS, "referral", f"Referral: {email}", uid)
 
-    token = make_token(uid, "user")
+    token = make_token(uid, "user", session_id)
     return {"token": token, "user": public_user(user)}
 
 
@@ -457,11 +468,14 @@ async def login(body: LoginIn):
         updates["temp_password_hash"] = None
         updates["temp_password_expires_at"] = None
         updates["must_change_password"] = True
-    if updates:
-        await db.users.update_one({"id": user["id"]}, {"$set": updates})
-        user.update(updates)
+    # Single-session enforcement: rotate session_id on every login.
+    # Any previously-issued JWT for this account is instantly invalidated.
+    new_session_id = str(uuid.uuid4())
+    updates["session_id"] = new_session_id
+    await db.users.update_one({"id": user["id"]}, {"$set": updates})
+    user.update(updates)
 
-    token = make_token(user["id"], user.get("role", "user"))
+    token = make_token(user["id"], user.get("role", "user"), new_session_id)
     return {"token": token, "user": public_user(user), "used_temp_password": used_temp}
 
 

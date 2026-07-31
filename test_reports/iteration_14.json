@@ -1,0 +1,35 @@
+{
+  "summary": "Verified single-session enforcement end-to-end (backend + frontend). Created /app/backend/tests/test_session_invalidation.py with 7 tests — all PASS: (1) register issues JWT with 'sid' claim and /me works, (2) duplicate register rejected, (3) user second login rotates sid and old token returns 401 with detail starting 'SESSION_INVALIDATED', newest still 200, (4) admin same behavior against /api/admin/dashboard AND /api/admin/games/status, (5) crash bias endpoint /api/admin/game/config accepts bias_mode:'aggressive' and status reflects it, (6) /api/admin/games/toggle roulette off/on works, (7) reset to normal + roulette:true + crash:true executed at end. Frontend: axios interceptor detects 401 SESSION_INVALIDATED, dispatches aerox:session-invalidated event, AuthContext listener clears aerox_token from localStorage and calls window.location.replace to /admin/login (admin path) or /login (user path). Verified with Playwright for BOTH admin (gowin365x@gmail.com) and a freshly registered user: reload / focus event after external session rotation caused instant 401 -> token cleared -> redirect to correct login page -> input[type=email] visible -> maintenance-screen NOT present. Also confirmed Sonner is mounted (saw 'Welcome back, Admin' toast on admin login).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Session invalidation UX — toast visibility",
+        "issue": "AuthContext calls toast.error('You were signed out...') and immediately runs window.location.replace(target). The full-page navigation happens before Sonner renders the toast, so the user typically does NOT see the toast (only sees the sudden redirect). The event and toast.error() call are correctly wired (verified in code), but visually the toast is swallowed by the redirect. Recommend either (a) delay the redirect by ~1200ms after toast.error, or (b) pass a query param (e.g. /login?evicted=1) and have the login page show the toast on mount, or (c) use setTimeout(() => window.location.replace(target), 1500).",
+        "affected_selectors": ["[data-sonner-toast]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_session_invalidation.py",
+    "/app/test_reports/pytest/session_invalidation.xml"
+  ],
+  "action_items": [
+    "Optional UX polish: delay window.location.replace by ~1.2s in AuthContext.jsx (line ~56) after toast.error, or pass ?evicted=1 to the login page and render the toast there on mount, so users actually see the 'You were signed out — this account signed in from another device.' message instead of just being teleported to the login page."
+  ],
+  "critical_code_review_comments": [
+    "server.py current_user (~171-193): correct — payload['sid'] compared with user['session_id']; 401 detail starts with 'SESSION_INVALIDATED' as required.",
+    "server.py login/register: session_id rotated on every login (uuid4). Register also assigns a session_id. JWT includes sid claim.",
+    "frontend/src/lib/api.js: interceptor uses detailStr.startsWith('SESSION_INVALIDATED') and only fires event if aerox_token is still in localStorage — avoids double-firing. Good.",
+    "AuthContext.jsx: window.location.replace fires synchronously in the same tick as toast.error → toast never visually renders (see integration issue above)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100% (7/7)", "frontend": "100% (redirect + token clear); toast dispatched but not visible due to immediate reload" },
+  "test_credentials": "Admin gowin365x@gmail.com / Admin@AeroX2026 (works). Freshly registered users used session-test-{rand}@example.com / Test@1234 during Playwright run.",
+  "seed_data_creation": "Created ~5 test users (TEST_sess_*@aeroxtest.com and session-test-*@example.com) during test runs; not cleaned up but harmless.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Register endpoint requires age_confirmed:true AND policy_agreed:true (NOT policy_accepted). /api/auth/me returns email in lowercase. JWT payload contains 'sid' claim. Backend state was reset at end of test run: bias_mode=normal, house_edge=0.03, paused=false, roulette+crash enabled. Test file: /app/backend/tests/test_session_invalidation.py."
+}

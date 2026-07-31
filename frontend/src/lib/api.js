@@ -11,6 +11,27 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Detect the single-session eviction signal from the backend and clear the
+// local token. AuthContext listens for the `aerox:session-invalidated` event
+// and redirects the user to /login with a toast.
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const status = err?.response?.status;
+    const detail = err?.response?.data?.detail;
+    const detailStr = typeof detail === "string" ? detail : "";
+    if (status === 401 && detailStr.startsWith("SESSION_INVALIDATED")) {
+      if (localStorage.getItem("aerox_token")) {
+        localStorage.removeItem("aerox_token");
+        window.dispatchEvent(
+          new CustomEvent("aerox:session-invalidated", { detail: detailStr })
+        );
+      }
+    }
+    return Promise.reject(err);
+  }
+);
+
 export function formatApiError(e) {
   const d = e?.response?.data?.detail;
   if (!d) return e?.message || "Something went wrong";
