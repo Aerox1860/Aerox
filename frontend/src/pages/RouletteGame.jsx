@@ -88,10 +88,38 @@ export default function RouletteGame() {
     }
   }, [state, refresh]);
 
+  // Local tick so the deadline comparison re-evaluates without extra polling.
+  // Declared here (before any early return) to satisfy the Rules of Hooks.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 250);
+    return () => clearInterval(id);
+  }, []);
+
   if (!table) return <Navigate to="/games/roulette" replace />;
 
+  // ─────────── Client-side round state machine ───────────
+  // The server drives round transitions via `phase` + `phase_end` (ISO timestamp).
+  // The UI gates its screen switch on the ACTUAL phase_end deadline so no premature
+  // flicker occurs between betting ↔ wheel views.
+  //
+  //   uiPhase transitions:
+  //     BETTING → LOCKED   (backend leaves 'betting' AND now >= betting phase_end)
+  //     LOCKED  → SPINNING (backend enters 'spinning' AND result_number is set)
+  //     SPINNING→ RESULT   (backend enters 'result')
+  //     RESULT  → BETTING  (backend enters 'betting' again — start of new round)
+  //
+  //   Screen mapping:
+  //     BETTING              → betting table + sidebar
+  //     LOCKED/SPINNING/RESULT → wheel view
+
   const phase = state?.phase || "betting";
-  const isBetting = phase === "betting";
+  const phaseEndTs = state?.phase_end ? Date.parse(state.phase_end) : 0;
+
+  const isBetting =
+    phase === "betting" &&
+    phaseEndTs > nowTs;           // hold BETTING view until the 20s countdown truly ends
+
   const totalStake = Object.values(bets).reduce((s, v) => s + v, 0);
   const balance = user?.balance ?? 0;
 
