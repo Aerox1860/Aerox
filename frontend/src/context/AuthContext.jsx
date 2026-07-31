@@ -53,7 +53,8 @@ export function AuthProvider({ children }) {
       const isLogin = path === "/login" || path === "/admin/login" || path === "/register";
       if (!isLogin) {
         const target = path.startsWith("/admin") ? "/admin/login" : "/login";
-        window.location.replace(target);
+        // Delay so the Sonner toast has time to render before the hard reload.
+        setTimeout(() => window.location.replace(target), 1500);
       }
     };
     window.addEventListener("aerox:session-invalidated", onKicked);
