@@ -19,8 +19,9 @@ export default function AdminGameControl() {
 
   useEffect(() => {
     loadDash(); loadGs();
-    const t = setInterval(loadDash, 3000);
-    return () => clearInterval(t);
+    const t1 = setInterval(loadDash, 3000);
+    const t2 = setInterval(loadGs, 2000);
+    return () => { clearInterval(t1); clearInterval(t2); };
   }, []);
 
   const saveEdge = async () => {
@@ -70,8 +71,8 @@ export default function AdminGameControl() {
         </div>
         <p className="text-sm text-slate-400">Turn a game OFF to show players an <span className="text-yellow-300">Under Maintenance</span> screen. Bets are blocked while off.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <MaintCard id="crash"    label="AeroX Crash" icon={Plane} enabled={gs.crash}    onToggle={(v) => toggleGame("crash", v)} />
-          <MaintCard id="roulette" label="Roulette"    icon={Disc}  enabled={gs.roulette} onToggle={(v) => toggleGame("roulette", v)} />
+          <MaintCard id="crash"    label="AeroX Crash" icon={Plane} enabled={gs.crash}    live={gs.crash_live}    onToggle={(v) => toggleGame("crash", v)} />
+          <MaintCard id="roulette" label="Roulette"    icon={Disc}  enabled={gs.roulette} live={gs.roulette_live} onToggle={(v) => toggleGame("roulette", v)} />
         </div>
       </div>
 
@@ -115,28 +116,48 @@ export default function AdminGameControl() {
   );
 }
 
-function MaintCard({ id, label, icon: Icon, enabled, onToggle }) {
+function MaintCard({ id, label, icon: Icon, enabled, live, onToggle }) {
+  const invested = Number(live?.total_invested || 0);
+  const players = Number(live?.players || 0);
+  const phase = live?.phase;
   return (
     <div className={`p-4 rounded-xl border ${enabled ? "border-emerald-500/40 bg-emerald-500/5" : "border-red-500/40 bg-red-500/5"}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${enabled ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
-            <Icon className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="font-bold">{label}</div>
-            <div className={`text-[11px] uppercase tracking-widest ${enabled ? "text-emerald-300" : "text-red-300"}`}>
-              {enabled ? "● Online" : "● Maintenance"}
-            </div>
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${enabled ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
+          <Icon className="w-5 h-5" />
+        </div>
+        <div className="flex-1">
+          <div className="font-bold">{label}</div>
+          <div className={`text-[11px] uppercase tracking-widest ${enabled ? "text-emerald-300" : "text-red-300"}`}>
+            {enabled ? "● Online" : "● Maintenance"}
+            {enabled && phase && <span className="ml-2 text-slate-400 normal-case tracking-normal">· {phase}</span>}
           </div>
         </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-[1fr,auto,1fr] items-center gap-3">
+        {/* Left: total invested this round */}
+        <div className="text-left" data-testid={`live-invested-${id}`}>
+          <div className="text-[10px] uppercase tracking-widest text-slate-500">Live Invested</div>
+          <div className="font-mono text-lg font-bold text-yellow-300 leading-tight">
+            ₹{invested.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+          </div>
+        </div>
+
+        {/* Middle: toggle button */}
         <button
           onClick={() => onToggle(!enabled)}
           data-testid={`maintenance-toggle-${id}`}
-          className={`px-4 py-2 rounded-lg text-xs font-bold ${enabled ? "btn-danger" : "btn-primary"}`}
+          className={`px-3 py-2 rounded-lg text-[11px] font-bold whitespace-nowrap ${enabled ? "btn-danger" : "btn-primary"}`}
         >
           {enabled ? "Set Maintenance" : "Bring Online"}
         </button>
+
+        {/* Right: current round players */}
+        <div className="text-right" data-testid={`live-players-${id}`}>
+          <div className="text-[10px] uppercase tracking-widest text-slate-500">Round Players</div>
+          <div className="font-mono text-lg font-bold text-cyan-300 leading-tight">{players}</div>
+        </div>
       </div>
     </div>
   );

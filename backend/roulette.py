@@ -261,6 +261,25 @@ def build_router(db, credit_fn, debit_fn, current_user_dep, is_enabled_fn=None):
         except Exception:
             return True
 
+    async def get_live_stats():
+        """Live round stats for the admin dashboard."""
+        rid = STATE.get("round_id") or ""
+        if not rid:
+            return {"round_id": "", "phase": STATE.get("phase"), "total_invested": 0.0, "players": 0}
+        rows = await db.roulette_bets.aggregate([
+            {"$match": {"round_id": rid}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}, "players": {"$addToSet": "$user_id"}}},
+        ]).to_list(1)
+        if not rows:
+            return {"round_id": rid, "phase": STATE.get("phase"), "total_invested": 0.0, "players": 0}
+        r = rows[0]
+        return {
+            "round_id": rid,
+            "phase": STATE.get("phase"),
+            "total_invested": round(float(r.get("total", 0) or 0), 2),
+            "players": len(r.get("players", []) or []),
+        }
+
     async def _round_loop():
         await asyncio.sleep(1)  # let app boot
         while True:
@@ -484,4 +503,4 @@ def build_router(db, credit_fn, debit_fn, current_user_dep, is_enabled_fn=None):
     async def history():
         return {"history": STATE["history"]}
 
-    return router, _combined_loop
+    return router, _combined_loop, get_live_stats

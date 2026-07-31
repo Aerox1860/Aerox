@@ -959,10 +959,27 @@ async def public_games_status():
 
 @api.get("/admin/games/status")
 async def admin_games_status(_: dict = Depends(admin_only)):
+    # Crash live round stats
+    crash_bets = list(game_state.get("bets", {}).values())
+    crash_live = {
+        "round_id": game_state.get("round_id") or "",
+        "phase": game_state.get("status"),
+        "total_invested": round(sum(float(b.get("amount", 0)) for b in crash_bets), 2),
+        "players": len(crash_bets),
+        "multiplier": round(float(game_state.get("multiplier", 1.0)), 2),
+    }
+    # Roulette live round stats
+    try:
+        roulette_live = await _roulette_live_stats()
+    except Exception:
+        roulette_live = {"round_id": "", "phase": None, "total_invested": 0.0, "players": 0}
+
     return {
         "crash": bool(GAMES_STATUS.get("crash", True)),
         "roulette": bool(GAMES_STATUS.get("roulette", True)),
         "bias_mode": BIAS_MODE,
+        "crash_live": crash_live,
+        "roulette_live": roulette_live,
     }
 
 
@@ -1478,7 +1495,7 @@ app.include_router(api)
 from roulette import build_router as _build_roulette
 def _is_roulette_enabled() -> bool:
     return bool(GAMES_STATUS.get("roulette", True))
-_roulette_router, _roulette_loop = _build_roulette(db, credit, debit, current_user, _is_roulette_enabled)
+_roulette_router, _roulette_loop, _roulette_live_stats = _build_roulette(db, credit, debit, current_user, _is_roulette_enabled)
 app.include_router(_roulette_router)
 
 app.add_middleware(
