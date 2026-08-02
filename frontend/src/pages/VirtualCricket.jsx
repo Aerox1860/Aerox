@@ -769,43 +769,61 @@ function OverRunsMarket({ match, placing, onPlace }) {
   );
 }
 
-/* ─── Bet row with live cashout preview (green if profit / red if loss) ─── */
+/* ─── Bet row with live cashout preview + expandable details on tap ─── */
 function BetRow({ bet, match, onCashout }) {
+  const [open, setOpen] = useState(false);
   const isPending = bet.status === "pending";
   const isMW      = bet.market === "match_winner";
   const canCashout = isPending && isMW && match.phase !== "completed";
 
+  // Live odds/line lookups so the user sees CURRENT vs bet-time values
+  const currentMwOdds  = isMW ? Number(match.odds?.match_winner?.[bet.selection] || 0) : 0;
+  const currentTr      = match.odds?.total_runs || {};
+  const currentOr      = bet.market === "over_runs"
+    ? (match.odds?.over_runs?.[`inn${bet.innings_target}_o${bet.over_target}`] || {})
+    : {};
+  const currentNb      = bet.market === "next_ball" ? Number(match.odds?.next_ball?.[bet.selection] || 0) : 0;
+
   let cashoutValue = null;
   let inProfit = null;
-  if (canCashout) {
-    const currentOdds = Number(match.odds?.match_winner?.[bet.selection] || 0);
-    if (currentOdds > 1.0) {
-      cashoutValue = Number(bet.amount) * Number(bet.odds_taken) / currentOdds;
-      inProfit = cashoutValue > Number(bet.amount);
-    }
+  if (canCashout && currentMwOdds > 1.0) {
+    cashoutValue = Number(bet.amount) * Number(bet.odds_taken) / currentMwOdds;
+    inProfit = cashoutValue > Number(bet.amount);
   }
 
-  const statusLabel = {
-    won:         "WON",
-    lost:        "LOST",
-    cashed_out:  "CASHED OUT",
-    pending:     "PENDING",
-  }[bet.status] || bet.status;
-  const statusCls = {
-    won:        "text-green-300",
-    lost:       "text-red-300",
-    cashed_out: "text-cyan-300",
-    pending:    "text-slate-400",
-  }[bet.status] || "text-slate-400";
+  const statusLabel = { won: "WON", lost: "LOST", cashed_out: "CASHED OUT", pending: "PENDING" }[bet.status] || bet.status;
+  const statusCls   = { won: "text-green-300", lost: "text-red-300", cashed_out: "text-cyan-300", pending: "text-slate-400" }[bet.status] || "text-slate-400";
+
+  const marketPretty = {
+    match_winner: "Match Winner",
+    toss_winner:  "Toss Winner",
+    total_runs:   "20-Over Total Runs",
+    over_runs:    `Over ${bet.over_target}-run (Inn ${bet.innings_target})`,
+    next_ball:    "Next Ball",
+  }[bet.market] || bet.market;
+
+  const selectionPretty = bet.market === "over_runs"
+    ? `${bet.ou?.toUpperCase()} ${bet.line}`
+    : bet.market === "total_runs"
+      ? `${bet.selection?.toUpperCase()} ${bet.line}`
+      : bet.market === "next_ball"
+        ? (bet.selection === "W" ? "OUT / Wicket" : `${bet.selection} run${bet.selection === "1" ? "" : "s"}`)
+        : bet.selection;
 
   return (
-    <div className="text-xs border border-white/5 rounded-lg p-2 bg-white/5" data-testid={`bet-row-${bet.id}`}>
-      <div className="flex items-center justify-between gap-2">
+    <div
+      className={`text-xs border border-white/5 rounded-lg bg-white/5 ${isPending ? "cursor-pointer hover:border-white/15" : ""}`}
+      data-testid={`bet-row-${bet.id}`}
+      onClick={() => isPending && setOpen((v) => !v)}
+    >
+      <div className="p-2 flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-mono truncate">{bet.market} · {bet.selection} @ {bet.odds_taken}x</div>
+          <div className="font-mono truncate">
+            {marketPretty} · <span className="text-yellow-300">{selectionPretty}</span> @ {bet.odds_taken}x
+          </div>
           <div className="text-[10px] text-slate-400">Stake ₹{bet.amount} · Potential ₹{bet.potential_payout}</div>
         </div>
-        <div className="text-right shrink-0">
+        <div className="text-right shrink-0" onClick={(e) => e.stopPropagation()}>
           {canCashout && cashoutValue !== null ? (
             <button
               onClick={() => onCashout(bet.id)}
@@ -813,8 +831,7 @@ function BetRow({ bet, match, onCashout }) {
               className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition
                 ${inProfit
                   ? "border-green-400/60 bg-green-500/15 text-green-200 hover:bg-green-500/25"
-                  : "border-red-400/60 bg-red-500/15 text-red-200 hover:bg-red-500/25"
-              }`}
+                  : "border-red-400/60 bg-red-500/15 text-red-200 hover:bg-red-500/25"}`}
               title={inProfit ? "In profit — take the win" : "Loss — cash out to reduce risk"}
             >
               <div className="text-[9px] uppercase tracking-widest opacity-80">
@@ -832,7 +849,56 @@ function BetRow({ bet, match, onCashout }) {
           )}
         </div>
       </div>
+
+      {/* Expanded details for pending bets — user requested visibility of captured odds/line vs live */}
+      {open && isPending && (
+        <div className="border-t border-white/10 px-3 py-2 space-y-1.5" data-testid={`bet-detail-${bet.id}`}>
+          <DetailRow k="Market" v={marketPretty} />
+          <DetailRow k="Selection" v={selectionPretty} />
+          {bet.line != null && <DetailRow k="Line at bet" v={String(bet.line)} highlight />}
+          <DetailRow k="Odds at bet" v={`${bet.odds_taken}x`} highlight />
+          {isMW && currentMwOdds > 0 && (
+            <DetailRow
+              k="Live odds now"
+              v={`${currentMwOdds.toFixed(2)}x`}
+              trend={currentMwOdds < bet.odds_taken ? "up" : currentMwOdds > bet.odds_taken ? "down" : null}
+              hint={currentMwOdds < bet.odds_taken ? "Your side stronger" : currentMwOdds > bet.odds_taken ? "Your side weaker" : null}
+            />
+          )}
+          {bet.market === "over_runs" && currentOr.line != null && (
+            <DetailRow k="Live line now" v={String(currentOr.line)}
+              trend={
+                bet.ou === "over"
+                  ? (currentOr.line < bet.line ? "up" : currentOr.line > bet.line ? "down" : null)
+                  : (currentOr.line > bet.line ? "up" : currentOr.line < bet.line ? "down" : null)
+              } />
+          )}
+          {bet.market === "total_runs" && currentTr.line != null && (
+            <DetailRow k="Live match line" v={String(currentTr.line)} />
+          )}
+          {bet.market === "next_ball" && currentNb > 0 && (
+            <DetailRow k="Live odds now" v={`${currentNb.toFixed(2)}x`} />
+          )}
+          <DetailRow k="Placed" v={new Date(bet.created_at).toLocaleTimeString()} />
+          <div className="text-[10px] text-slate-500 pt-1">
+            Tip: green ↑ means your position improved · red ↓ means it's slipping
+          </div>
+        </div>
+      )}
     </div>
   );
+}
 
+function DetailRow({ k, v, highlight, trend, hint }) {
+  return (
+    <div className="flex items-center justify-between text-[11px]">
+      <span className="text-slate-400">{k}</span>
+      <span className={`font-mono ${highlight ? "text-yellow-300 font-bold" : "text-slate-100"} flex items-center gap-1`}>
+        {v}
+        {trend === "up"   && <span className="text-green-400">↑</span>}
+        {trend === "down" && <span className="text-red-400">↓</span>}
+        {hint && <span className="text-[9px] uppercase tracking-widest text-slate-500 ml-1">{hint}</span>}
+      </span>
+    </div>
+  );
 }
