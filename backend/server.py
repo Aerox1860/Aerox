@@ -1498,6 +1498,10 @@ def _is_roulette_enabled() -> bool:
 _roulette_router, _roulette_loop, _roulette_live_stats = _build_roulette(db, credit, debit, current_user, _is_roulette_enabled)
 app.include_router(_roulette_router)
 
+# ------------- Cricket In-Play proxy -------------
+from cricket import build_router as _build_cricket
+app.include_router(_build_cricket())
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,

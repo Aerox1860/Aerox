@@ -1,130 +1,41 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Radio, Calendar, MapPin, Coins, X, Trophy, Clock, Zap, Users } from "lucide-react";
+import { Radio, Calendar, MapPin, Coins, X, Trophy, Clock, Zap, Users, Loader2 } from "lucide-react";
+import { api } from "@/lib/api";
 
-// Mock cricket data — replace with real API later (CricketData.org / CricAPI / etc.)
-// Each match:
-//   id, series, format ("T20"|"ODI"|"Test"), status ("live"|"upcoming"|"completed"),
-//   teams: [{name, short, flag, score?, overs?, wickets?}], venue, toss?, startTime, currentBatting?, matchNotes
-const MOCK_MATCHES = [
-  {
-    id: "m-1",
-    series: "IPL 2026",
-    format: "T20",
-    status: "live",
-    teams: [
-      { name: "Mumbai Indians",       short: "MI",  flag: "🔵", score: 184, overs: 18.2, wickets: 5 },
-      { name: "Chennai Super Kings", short: "CSK", flag: "🟡", score: 127, overs: 14.1, wickets: 3 },
-    ],
-    venue: "Wankhede Stadium, Mumbai",
-    toss: "CSK won toss, chose to bowl",
-    weather: "Clear, 28°C",
-    currentBatting: "CSK",
-    startTime: "Today, 7:30 PM IST",
-    matchNotes: "CSK needs 58 in 35 balls · Req rate 9.94",
-  },
-  {
-    id: "m-2",
-    series: "Border-Gavaskar Trophy 2026",
-    format: "Test",
-    status: "live",
-    teams: [
-      { name: "India",     short: "IND", flag: "🇮🇳", score: 342, overs: 89.4, wickets: 6 },
-      { name: "Australia", short: "AUS", flag: "🇦🇺", score: 289, overs: 82.0, wickets: 10 },
-    ],
-    venue: "M. A. Chidambaram Stadium, Chennai",
-    toss: "IND won toss, chose to bat",
-    weather: "Humid, 31°C",
-    currentBatting: "IND (2nd innings)",
-    startTime: "Day 3 · Session 2",
-    matchNotes: "IND lead by 53 runs · Rain expected in 2 hrs",
-  },
-  {
-    id: "m-3",
-    series: "The Hundred 2026",
-    format: "T20",
-    status: "live",
-    teams: [
-      { name: "London Spirit",   short: "LDS", flag: "🟣", score: 92, overs: 12.4, wickets: 2 },
-      { name: "Trent Rockets",  short: "TRT",  flag: "🟠", score: 0,  overs: 0,    wickets: 0 },
-    ],
-    venue: "Lord's, London",
-    toss: "LDS won toss, chose to bat",
-    weather: "Overcast, 19°C",
-    currentBatting: "LDS",
-    startTime: "Ongoing",
-    matchNotes: "First innings in progress",
-  },
-  {
-    id: "m-4",
-    series: "IPL 2026",
-    format: "T20",
-    status: "upcoming",
-    teams: [
-      { name: "Royal Challengers Bengaluru", short: "RCB", flag: "🔴" },
-      { name: "Kolkata Knight Riders",       short: "KKR", flag: "🟣" },
-    ],
-    venue: "M. Chinnaswamy Stadium, Bengaluru",
-    startTime: "Tomorrow, 7:30 PM IST",
-    matchNotes: "Head-to-head: RCB 15 · KKR 18",
-  },
-  {
-    id: "m-5",
-    series: "ICC Champions Trophy 2026",
-    format: "ODI",
-    status: "upcoming",
-    teams: [
-      { name: "Pakistan",   short: "PAK", flag: "🇵🇰" },
-      { name: "New Zealand", short: "NZ", flag: "🇳🇿" },
-    ],
-    venue: "Gaddafi Stadium, Lahore",
-    startTime: "Feb 12, 2:30 PM IST",
-    matchNotes: "Group A · Both teams unbeaten",
-  },
-  {
-    id: "m-6",
-    series: "BBL 2025-26",
-    format: "T20",
-    status: "upcoming",
-    teams: [
-      { name: "Sydney Sixers",  short: "SIX", flag: "🟪" },
-      { name: "Perth Scorchers", short: "PER", flag: "🟧" },
-    ],
-    venue: "SCG, Sydney",
-    startTime: "Feb 14, 1:45 PM IST",
-    matchNotes: "Playoff qualifier",
-  },
-];
+// Data comes from the backend cricket proxy (CricAPI). Poll every 30s so
+// the free-tier quota (100 hits/day) is preserved via server-side cache.
+const POLL_MS = 30000;
 
 export default function InPlay() {
-  const [matches, setMatches] = useState(MOCK_MATCHES);
-  const [tab, setTab] = useState("live"); // live | upcoming
+  const [live, setLive] = useState([]);
+  const [upcoming, setUpcoming] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+  const [tab, setTab] = useState("live");
   const [openMatch, setOpenMatch] = useState(null);
 
-  // Simulate score ticker for live matches (mock — replace with API polling)
   useEffect(() => {
-    const t = setInterval(() => {
-      setMatches((prev) =>
-        prev.map((m) => {
-          if (m.status !== "live") return m;
-          const t = { ...m, teams: m.teams.map((x) => ({ ...x })) };
-          const bat = m.currentBatting?.split(" ")[0];
-          const idx = t.teams.findIndex((x) => x.short === bat);
-          if (idx >= 0 && Math.random() > 0.5) {
-            const inc = [0, 1, 1, 2, 4, 6][Math.floor(Math.random() * 6)];
-            t.teams[idx].score = (t.teams[idx].score || 0) + inc;
-            t.teams[idx].overs = Number(((t.teams[idx].overs || 0) + 0.1).toFixed(1));
-          }
-          return t;
-        })
-      );
-    }, 4000);
-    return () => clearInterval(t);
+    let alive = true;
+    const load = async () => {
+      try {
+        const { data } = await api.get("/inplay/matches");
+        if (!alive) return;
+        setLive(data.live || []);
+        setUpcoming(data.upcoming || []);
+        setErr(null);
+      } catch (e) {
+        if (alive) setErr(e?.response?.data?.detail || e?.message || "Failed to fetch matches");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+    load();
+    const t = setInterval(load, POLL_MS);
+    return () => { alive = false; clearInterval(t); };
   }, []);
 
-  const live     = matches.filter((m) => m.status === "live");
-  const upcoming = matches.filter((m) => m.status === "upcoming");
-  const rows     = tab === "live" ? live : upcoming;
+  const rows = tab === "live" ? live : upcoming;
 
   return (
     <div className="space-y-5" data-testid="inplay-page">
@@ -157,19 +68,25 @@ export default function InPlay() {
         </TabButton>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4" data-testid="inplay-grid">
-        <AnimatePresence mode="popLayout">
-          {rows.map((m) => (
-            <MatchCard key={m.id} match={m} onOpen={() => setOpenMatch(m)} />
-          ))}
-        </AnimatePresence>
-        {rows.length === 0 && (
-          <div className="col-span-full card-surface p-8 text-center text-slate-400">
-            No {tab} matches right now — check back soon.
-          </div>
-        )}
-      </div>
+      {/* Content */}
+      {loading ? (
+        <div className="card-surface p-10 text-center text-slate-400 inline-flex items-center gap-2 w-full justify-center">
+          <Loader2 className="w-4 h-4 animate-spin" /> Fetching cricket data…
+        </div>
+      ) : err ? (
+        <div className="card-surface p-6 text-center text-red-300 border border-red-500/30">{err}</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4" data-testid="inplay-grid">
+          <AnimatePresence mode="popLayout">
+            {rows.map((m) => <MatchCard key={m.id} match={m} onOpen={() => setOpenMatch(m)} />)}
+          </AnimatePresence>
+          {rows.length === 0 && (
+            <div className="col-span-full card-surface p-8 text-center text-slate-400">
+              No {tab} matches right now — check back soon.
+            </div>
+          )}
+        </div>
+      )}
 
       <ScorecardModal match={openMatch} onClose={() => setOpenMatch(null)} />
 
