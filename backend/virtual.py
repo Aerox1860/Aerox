@@ -299,10 +299,9 @@ def _over_runs_odds(m: Dict[str, Any]) -> Dict[str, Any]:
     """
     out: Dict[str, Any] = {}
     bias = _line_bias()
-    m_ = _margin()
-    # decimal odds for a coin-flip-ish market with house margin
-    over_o  = round(m_ / 0.53, 2)   # ~1.98 at normal, ~2.11 at aggressive, ~2.30 at ruthless
-    under_o = round(m_ / 0.51, 2)
+    # Fancy over-runs uses a fixed 1.95 payout (5% flat commission — standard cricket-exchange convention).
+    over_o  = 1.95
+    under_o = 1.95
 
     inn2_visible = m["phase"] in ("break", "innings2", "completed")
 
