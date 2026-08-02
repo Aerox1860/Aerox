@@ -198,7 +198,15 @@ function MatchRoom({ initial, onClose }) {
       };
     };
     connect();
-    return () => { stopped = true; try { wsRef.current?.close(); } catch {} };
+    return () => {
+      stopped = true;
+      try {
+        const ws = wsRef.current;
+        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+          ws.close();
+        }
+      } catch {}
+    };
   }, [initial.id]);
 
   const settle = () => refreshMyBets();
