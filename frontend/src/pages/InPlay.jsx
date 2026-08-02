@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Radio, Calendar, MapPin, Coins, X, Trophy, Clock, Zap, Users, Loader2 } from "lucide-react";
+import { Radio, Calendar, MapPin, Coins, X, Trophy, Clock, Zap, Users, Loader2, ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 
 // Data comes from the backend cricket proxy (CricAPI). Poll every 30s so
@@ -55,6 +56,32 @@ export default function InPlay() {
           <span>{live.length} live · {upcoming.length} upcoming</span>
         </div>
       </div>
+
+      {/* Featured: Virtual Cricket arena */}
+      <Link
+        to="/virtual"
+        data-testid="virtual-cta"
+        className="block card-surface p-4 md:p-5 relative overflow-hidden group hover:border-yellow-400/40 transition"
+      >
+        <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full bg-yellow-500/20 blur-3xl pointer-events-none" />
+        <div className="absolute top-3 right-3">
+          <span className="chip !bg-yellow-500/15 !border-yellow-400/50 !text-yellow-300 text-[10px] uppercase">
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 animate-pulse" /> Live betting
+          </span>
+        </div>
+        <div className="flex items-center gap-4 relative">
+          <div className="w-12 h-12 rounded-xl bg-yellow-500/15 border border-yellow-400/50 grid place-items-center">
+            <Trophy className="w-6 h-6 text-yellow-300" />
+          </div>
+          <div className="flex-1">
+            <div className="font-heading font-black text-lg leading-tight">Virtual Cricket Arena</div>
+            <div className="text-xs text-slate-400 mt-0.5">Simulated T5 matches every few minutes · Bet on Winner, Toss & Total Runs · Mid-match cashout</div>
+          </div>
+          <div className="hidden md:flex items-center gap-1 text-cyan-300 text-sm font-semibold">
+            Enter arena <ChevronRight className="w-4 h-4" />
+          </div>
+        </div>
+      </Link>
 
       {/* Tabs */}
       <div className="flex gap-2" role="tablist">

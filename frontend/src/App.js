@@ -11,6 +11,7 @@ import Deposit from "@/pages/Deposit";
 import Withdraw from "@/pages/Withdraw";
 import Leaderboard from "@/pages/Leaderboard";
 import InPlay from "@/pages/InPlay";
+import VirtualCricket from "@/pages/VirtualCricket";
 import Referrals from "@/pages/Referrals";
 import Profile from "@/pages/Profile";
 
@@ -105,6 +106,7 @@ function AppRoutes() {
           <Route path="withdraw" element={<Withdraw />} />
           <Route path="leaderboard" element={<Leaderboard />} />
           <Route path="in-play" element={<InPlay />} />
+          <Route path="virtual" element={<VirtualCricket />} />
           <Route path="referrals" element={<Referrals />} />
           <Route path="support" element={<Support />} />
           <Route path="profile" element={<Profile />} />
@@ -133,6 +135,7 @@ function AppRoutes() {
         <Route path="withdraw" element={<Withdraw />} />
         <Route path="leaderboard" element={<Leaderboard />} />
         <Route path="in-play" element={<InPlay />} />
+        <Route path="virtual" element={<VirtualCricket />} />
         <Route path="referrals" element={<Referrals />} />
         <Route path="support" element={<Support />} />
         <Route path="profile" element={<Profile />} />

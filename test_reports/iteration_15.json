@@ -1,0 +1,40 @@
+{
+  "summary": "Virtual Cricket Phase 1 tested end-to-end. Backend: 13/13 executed pytest tests pass covering matches list (3 concurrent), get-by-id (200/404), match_winner bet + wallet debit + my-bets persistence, MW cashout with payout formula and wallet credit + status change, cashout rejection on toss/total_runs and on already-settled bets, toss market gating (400 when phase != pre_toss), total_runs over/under placement with line captured, invalid-selection 400, dynamic MW odds changing across a 5s window (or ball tick progressed), WebSocket /api/virtual/ws/{id} state + ball frames received. Regression: admin login OK, /api/admin/games/status returns crash_live/roulette_live/bias_mode. /api/inplay/matches was blocked by upstream CricAPI rate limit ('CricAPI: Blocked for 15 minutes' — 502 at edge) — test is skipped conditionally. Frontend: login → /virtual renders [data-testid='virtual-page'] with [data-testid='virtual-grid'] and 3 [data-testid='virtual-tile-*']. Clicking a tile opens [data-testid='virtual-room'] with scoreboard, commentary feed, MW/Toss/TR market cards. Placed a match_winner bet — Sonner toast 'Bet placed @ 1.95x' appeared, bet showed under 'My bets on this match', Cash out button visible (only for MW). Cashed out — 'Cashed out ₹20.00' toast, bet status flipped to CASHED_OUT, wallet credited. In-Play page shows [data-testid='virtual-cta'] that navigates to /virtual on click.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/inplay/matches", "issue": "CricAPI upstream returned 'Blocked for 15 minutes' during this run; backend returns HTTP 502 with detail JSON. Test skipped, not a regression — but consider adding a fallback / cached response so the UI doesn't break when upstream throttles."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "MatchRoom WebSocket", "issue": "Console warning 'WebSocket is closed before the connection is established' fires briefly on modal open/close (unmount race). Not user-visible — state/odds fall back to the 4s poll — but worth guarding by checking ws.readyState before ws.close().", "affected_selectors": ["[data-testid='virtual-room']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_virtual_cricket.py",
+    "/app/test_reports/pytest/virtual_cricket.xml"
+  ],
+  "action_items": [
+    "Optional: guard VirtualCricket MatchRoom ws close on unmount to silence the 'closed before established' warning.",
+    "Optional: cache /api/inplay/matches upstream response for ~5 min so CricAPI throttling ('Blocked for 15 minutes') doesn't propagate a 502 to the UI."
+  ],
+  "critical_code_review_comments": [
+    "virtual.py:428 total_runs bet allows placement while phase in ('break','innings2') without a phase-end guard other than 'completed' — acceptable per spec but consider disabling near end for consistency with 'settles at end' UI copy.",
+    "virtual.py:480 cashout rejects when phase == 'completed' but there's a small race where match completes between odds fetch and settle_market; current code path handles it via 400 'Bet already settled' if settled first, otherwise HTTPException — OK but flaky in tests.",
+    "MW cashout formula (payout = amount * odds_taken / current_odds) works only while current_odds > 1.0. On completed matches winner odds forced to 1.01 which would allow near-full payout if cashout weren't already blocked — the completed-phase guard is correctly placed.",
+    "VirtualCricket.jsx `loading` init true — if the very first /virtual/matches request is slow (>3-4s) the page shows 'Warming up the pitch…' Consider showing a skeleton with expected number of tiles."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_virtual_cricket.py"
+  ],
+  "success_rate": {"backend": "100% (13/13 executed, 2 skipped intentionally)", "frontend": "100% (all critical flows verified)"},
+  "test_credentials": "Admin: gowin365x@gmail.com / Admin@AeroX2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None. Admin balance was ~3800 INR (sufficient); if fixture found <500 it would top up +5000 via /api/admin/users/adjust.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite at /app/backend/tests/test_virtual_cricket.py must be run WITHOUT xdist (use -o 'addopts=' to disable the pytest.ini -n auto). Single-session JWT enforcement makes parallel workers invalidate each other's tokens. The regression test for /api/inplay/matches will be skipped whenever CricAPI upstream is blocked. Virtual matches cycle every ~2 min; if a test flakes, rerun. Frontend flow verified: /virtual → tile → room → bet → cashout works fully. WS warning on modal close is cosmetic.",
+  "rca of the issue": "N/A — no blocking issues found. The one transient issue observed initially (frontend showing 'Warming up the pitch…' with 0 rooms) was purely a race between first render and first /virtual/matches response; on the retest with ~6s wait, all 3 rooms populated as expected."
+}

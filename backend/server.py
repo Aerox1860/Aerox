@@ -350,6 +350,8 @@ async def startup():
     asyncio.create_task(game_loop())
     # Start roulette loop
     asyncio.create_task(_roulette_loop())
+    # Start virtual cricket engine
+    asyncio.create_task(_virtual_start())
 
 
 @app.on_event("shutdown")
@@ -1501,6 +1503,11 @@ app.include_router(_roulette_router)
 # ------------- Cricket In-Play proxy -------------
 from cricket import build_router as _build_cricket
 app.include_router(_build_cricket())
+
+# ------------- Virtual Cricket engine -------------
+from virtual import build_router as _build_virtual
+_virtual_router, _virtual_start = _build_virtual(db, credit, debit, current_user)
+app.include_router(_virtual_router)
 
 app.add_middleware(
     CORSMiddleware,
