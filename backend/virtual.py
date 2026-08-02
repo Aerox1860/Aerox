@@ -148,6 +148,8 @@ def _fresh_match_shell(match_no: int, tour_type: str = "international") -> Dict[
             "match_winner":  {},     # {short: decimal}
             "toss_winner":   {},
             "total_runs":    {},     # {"line": X, "over": d, "under": d}
+            "over_runs":     {},     # {"inn1_o6": {line, over, under, closed}, ...}
+            "next_ball":     {},     # {"0":d,"1":d,...,"W":d}
         },
     }
 
@@ -247,10 +249,93 @@ def _total_runs_odds(m: Dict[str, Any]) -> Dict[str, Any]:
     return {"line": total_now, "over": 15.0, "under": 15.0}
 
 
+# Fancy over-total markets: 6/10/15 over projected runs per innings.
+# Line is expected runs at that over given current run rate + wickets remaining.
+FANCY_OVERS = [6, 10, 15]
+NEXT_BALL_MARKET = ("0", "1", "2", "3", "4", "6", "W")
+
+
+def _project_runs_at_over(m: Dict[str, Any], target_over: int) -> Optional[float]:
+    """Project a team's total runs at end of `target_over` overs, based on current progress.
+    Returns None if the innings has already passed that over (settled)."""
+    if not m.get("batting"): return None
+    sc = m["scores"].get(m["batting"], {})
+    balls = sc.get("balls", 0)
+    runs  = sc.get("runs", 0)
+    wickets = sc.get("wickets", 0)
+    target_balls = target_over * BALLS_PER_OVER
+    if balls >= target_balls:
+        return None   # market closed
+    # Realistic projection: current runs + expected run rate for remaining balls.
+    current_rr_ball = (runs + 4) / max(1, balls + 6)  # smoothed
+    remaining = target_balls - balls
+    wkt_penalty = 0.85 if wickets >= 6 else 0.95 if wickets >= 4 else 1.0
+    projected = runs + remaining * current_rr_ball * wkt_penalty
+    return round(projected, 1)
+
+
+def _over_runs_odds(m: Dict[str, Any]) -> Dict[str, Any]:
+    """For each innings + each FANCY_OVERS milestone, publish a line + over/under decimals.
+    Key format: "inn1_o6", "inn1_o10", "inn1_o15", "inn2_o6", ...
+    """
+    out: Dict[str, Any] = {}
+    if m["phase"] in ("pre_match", "toss", "lineup"):
+        # Pre-innings estimates from T20 par by over: ~1st6=52, ~1st10=82, ~1st15=125.
+        pre_lines = {6: 52.0, 10: 82.0, 15: 125.0}
+        for inn in (1, 2):
+            for ov in FANCY_OVERS:
+                out[f"inn{inn}_o{ov}"] = {"line": pre_lines[ov], "over": 1.9, "under": 1.9, "closed": False}
+        return out
+
+    t1, t2 = m["teams"][0]["short"], m["teams"][1]["short"]
+    # innings1 currently
+    if m["phase"] == "innings1":
+        for ov in FANCY_OVERS:
+            proj = _project_runs_at_over(m, ov)
+            if proj is None:
+                # already past this over — leave last known state (closed)
+                out[f"inn1_o{ov}"] = {"line": None, "over": 0, "under": 0, "closed": True}
+            else:
+                out[f"inn1_o{ov}"] = {"line": proj, "over": 1.9, "under": 1.9, "closed": False}
+        for ov in FANCY_OVERS:
+            out[f"inn2_o{ov}"] = {"line": 52.0 if ov == 6 else 82.0 if ov == 10 else 125.0,
+                                   "over": 1.9, "under": 1.9, "closed": False}
+        return out
+
+    if m["phase"] in ("break", "innings2"):
+        # Innings 1 markets are all closed by the time break starts
+        for ov in FANCY_OVERS:
+            out[f"inn1_o{ov}"] = {"line": None, "over": 0, "under": 0, "closed": True}
+        for ov in FANCY_OVERS:
+            proj = _project_runs_at_over(m, ov)
+            if proj is None:
+                out[f"inn2_o{ov}"] = {"line": None, "over": 0, "under": 0, "closed": True}
+            else:
+                out[f"inn2_o{ov}"] = {"line": proj, "over": 1.9, "under": 1.9, "closed": False}
+        return out
+
+    # completed — everything closed
+    for inn in (1, 2):
+        for ov in FANCY_OVERS:
+            out[f"inn{inn}_o{ov}"] = {"line": None, "over": 0, "under": 0, "closed": True}
+    return out
+
+
+def _next_ball_odds(m: Dict[str, Any]) -> Dict[str, float]:
+    """Odds for each possible next-ball outcome. Uses tuned probs w/ 5% margin.
+    Open only during innings1/innings2. Closed otherwise (all zero)."""
+    if m["phase"] not in ("innings1", "innings2"):
+        return {o: 0.0 for o in NEXT_BALL_MARKET}
+    margin = 1.05
+    return {o: round(margin / max(0.005, p), 2) for o, p in BALL_PROBS}
+
+
 def _recompute_odds(m: Dict[str, Any]) -> None:
     m["odds"]["match_winner"] = _match_winner_odds(m)
     m["odds"]["toss_winner"]  = _toss_odds(m)
     m["odds"]["total_runs"]   = _total_runs_odds(m)
+    m["odds"]["over_runs"]    = _over_runs_odds(m)
+    m["odds"]["next_ball"]    = _next_ball_odds(m)
 
 
 # ─────────────────────────── Engine ─────────────────────────────────
@@ -414,12 +499,30 @@ class VirtualEngine:
                 m["commentary"].insert(0, comm)
                 m["commentary"] = m["commentary"][:24]
 
+                # Settle next_ball market bets for THIS match (fires each ball)
+                await self._settle_next_ball(m, outcome)
+
+                # If we just completed a fancy over (6/10/15) for this innings, settle those over_runs bets
+                if ball_idx == 0 and over_idx in FANCY_OVERS:
+                    await self._settle_over_runs(m, innings=(1 if first else 2), over_target=over_idx, actual_runs=sc["runs"])
+
                 _recompute_odds(m)
                 await self._broadcast(m["id"], "ball", {"match": self._public_match(m), "comm": comm})
 
             # end of over — light pause
             if m["scores"][bat]["wickets"] >= MAX_WICKETS: break
             if not first and (m["scores"][bat]["runs"] >= (m["target"] or 0)): break
+
+        # innings finished — any un-settled fancy over markets for this innings settle with the FINAL runs
+        # (e.g. team all-out at over 4 → 6/10/15-over markets close with runs achieved).
+        for ov in FANCY_OVERS:
+            await self._settle_over_runs(
+                m,
+                innings=(1 if first else 2),
+                over_target=ov,
+                actual_runs=m["scores"][bat]["runs"],
+                only_pending=True,
+            )
 
     # ─── Public serializers ───
     def _recent_over_commentary(self, m: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -493,6 +596,22 @@ class VirtualEngine:
             if m["phase"] in ("completed",):
                 raise HTTPException(400, "Market closed")
             odds = m["odds"]["total_runs"].get(selection, 0)
+        elif market == "over_runs":
+            # selection format: "inn{1|2}_o{6|10|15}_{over|under}"
+            parts = selection.split("_")
+            if len(parts) != 3 or parts[0] not in ("inn1","inn2") or not parts[1].startswith("o") or parts[2] not in ("over","under"):
+                raise HTTPException(400, "Selection must be inn{1|2}_o{6|10|15}_{over|under}")
+            key = f"{parts[0]}_{parts[1]}"
+            info = m["odds"]["over_runs"].get(key)
+            if not info or info.get("closed") or info.get("line") is None:
+                raise HTTPException(400, "Over runs market closed")
+            odds = info.get(parts[2], 0)
+        elif market == "next_ball":
+            if selection not in NEXT_BALL_MARKET:
+                raise HTTPException(400, "Selection must be 0/1/2/3/4/6/W")
+            if m["phase"] not in ("innings1", "innings2"):
+                raise HTTPException(400, "Next-ball market open only during innings")
+            odds = m["odds"]["next_ball"].get(selection, 0)
         else:
             raise HTTPException(400, "Unknown market")
 
@@ -506,8 +625,17 @@ class VirtualEngine:
             raise HTTPException(400, "Insufficient balance")
 
         line = None
+        extras: Dict[str, Any] = {}
         if market == "total_runs":
             line = m["odds"]["total_runs"].get("line")
+        elif market == "over_runs":
+            parts = selection.split("_")
+            key = f"{parts[0]}_{parts[1]}"
+            info = m["odds"]["over_runs"][key]
+            line = info["line"]
+            extras["innings_target"] = 1 if parts[0] == "inn1" else 2
+            extras["over_target"]    = int(parts[1][1:])
+            extras["ou"]             = parts[2]     # "over" or "under"
 
         bet_id = str(uuid.uuid4())
         bet = {
@@ -526,6 +654,7 @@ class VirtualEngine:
             "settled_at": None,
             "cashout_multiplier": None,
             "created_at": iso(now_utc()),
+            **extras,
         }
         await self.debit(user["id"], amount, "virtual_bet", f"Virtual {market} — {selection}", bet_id)
         await self.db.virtual_bets.insert_one(bet)
@@ -598,11 +727,55 @@ class VirtualEngine:
                 await self.credit(b["user_id"], payout, "virtual_win",
                                   "Virtual total_runs win", b["id"])
 
+    async def _settle_next_ball(self, m: Dict[str, Any], outcome: str):
+        """Settle all pending next_ball bets on this match against `outcome`."""
+        q = {"match_id": m["id"], "market": "next_ball", "status": "pending"}
+        async for b in self.db.virtual_bets.find(q):
+            won = (b["selection"] == outcome)
+            payout = round(float(b["amount"]) * float(b["odds_taken"]), 2) if won else 0.0
+            await self.db.virtual_bets.update_one({"id": b["id"]}, {"$set": {
+                "status": "won" if won else "lost",
+                "settled_at": iso(now_utc()),
+                "payout": payout,
+                "outcome": outcome,
+            }})
+            if won:
+                await self.credit(b["user_id"], payout, "virtual_win",
+                                  f"Virtual next_ball ({outcome}) win", b["id"])
+
+    async def _settle_over_runs(self, m: Dict[str, Any], innings: int, over_target: int,
+                                actual_runs: int, only_pending: bool = False):
+        """Settle over_runs bets for a specific innings + over milestone."""
+        q = {
+            "match_id": m["id"],
+            "market": "over_runs",
+            "innings_target": innings,
+            "over_target": over_target,
+            "status": "pending",
+        }
+        async for b in self.db.virtual_bets.find(q):
+            line = float(b.get("line", 0) or 0)
+            ou   = b.get("ou", "over")
+            if ou == "over":
+                won = actual_runs > line
+            else:
+                won = actual_runs < line
+            payout = round(float(b["amount"]) * float(b["odds_taken"]), 2) if won else 0.0
+            await self.db.virtual_bets.update_one({"id": b["id"]}, {"$set": {
+                "status": "won" if won else "lost",
+                "settled_at": iso(now_utc()),
+                "payout": payout,
+                "runs_final": actual_runs,
+            }})
+            if won:
+                await self.credit(b["user_id"], payout, "virtual_win",
+                                  f"Virtual over_runs (inn{innings} o{over_target}) win", b["id"])
+
 
 # ─────────────────────────── Router ─────────────────────────────────
 class BetIn(BaseModel):
     match_id: str
-    market:   str = Field(pattern=r"^(match_winner|toss_winner|total_runs)$")
+    market:   str = Field(pattern=r"^(match_winner|toss_winner|total_runs|over_runs|next_ball)$")
     selection: str
     amount:    float = Field(gt=0)
 

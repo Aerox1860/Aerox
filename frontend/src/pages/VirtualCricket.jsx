@@ -521,6 +521,12 @@ function BetSidebar({ match, myBets, refreshMyBets, refreshBalance }) {
         <SelBtn label={`Under ${tr.line}`} odds={tr.under} disabled={!canBetTotal || placing} onClick={() => place("total_runs", "under")} testid="bet-tr-under" />
       </MarketCard>
 
+      {/* Fancy: Next-ball outcome (only during innings) */}
+      <NextBallMarket match={match} placing={placing} onPlace={(sel) => place("next_ball", sel)} />
+
+      {/* Fancy: Over-total lines 6 / 10 / 15 for both innings */}
+      <OverRunsMarket match={match} placing={placing} onPlace={(sel) => place("over_runs", sel)} />
+
       {/* My bets */}
       <div className="card-surface p-4">
         <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">My bets on this match</div>
@@ -589,5 +595,96 @@ function SelBtn({ label, odds, disabled, onClick, testid }) {
         {hasOdds ? `${odds}x` : "—"}
       </div>
     </button>
+  );
+}
+
+
+/* ─── Fancy: Next-ball outcome market ─── */
+function NextBallMarket({ match, placing, onPlace }) {
+  const open  = match.phase === "innings1" || match.phase === "innings2";
+  const odds  = match.odds?.next_ball || {};
+  const items = ["0", "1", "2", "3", "4", "6", "W"];
+  return (
+    <div className="card-surface p-4" data-testid="mkt-next-ball">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs font-bold">Next Ball Outcome</div>
+        <div className="text-[10px] text-slate-500">{open ? "Locks on next ball · No cashout" : "Open in innings only"}</div>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {items.map((o) => (
+          <SelBtn
+            key={o}
+            label={o === "W" ? "OUT" : `${o} run${o === "1" ? "" : "s"}`}
+            odds={odds[o]}
+            disabled={!open || placing}
+            onClick={() => onPlace(o)}
+            testid={`bet-nb-${o}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Fancy: 6 / 10 / 15-over runs lines per innings ─── */
+function OverRunsMarket({ match, placing, onPlace }) {
+  const groups = match.odds?.over_runs || {};
+  const bat = match.batting;
+  const innsIdx = match.innings || 0;
+  return (
+    <div className="card-surface p-4" data-testid="mkt-over-runs">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs font-bold">Over-Runs Fancy</div>
+        <div className="text-[10px] text-slate-500">Settles when the over ends · No cashout</div>
+      </div>
+      <div className="space-y-3">
+        {[1, 2].map((inn) => (
+          <div key={inn}>
+            <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">
+              Innings {inn}
+              {innsIdx === inn && bat && <span className="ml-1 text-yellow-300">· {bat}</span>}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[6, 10, 15].map((ov) => {
+                const info = groups[`inn${inn}_o${ov}`] || {};
+                const closed = !!info.closed || info.line == null;
+                return (
+                  <div key={ov} className={`rounded-lg border p-2 text-xs ${closed ? "border-white/5 bg-white/5" : "border-white/10"}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-300">O{ov}</div>
+                      <div className={`font-mono ${closed ? "text-slate-500" : "text-yellow-300"}`}>{closed ? "—" : info.line}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={() => onPlace(`inn${inn}_o${ov}_over`)}
+                        disabled={closed || placing}
+                        data-testid={`bet-or-inn${inn}-o${ov}-over`}
+                        className={`py-1.5 rounded text-[10px] font-bold border transition ${
+                          closed ? "border-white/5 text-slate-500 cursor-not-allowed"
+                          : "border-cyan-400/40 text-cyan-200 bg-cyan-500/10 hover:border-cyan-400/70"
+                        }`}
+                      >
+                        Over · {info.over ?? "—"}x
+                      </button>
+                      <button
+                        onClick={() => onPlace(`inn${inn}_o${ov}_under`)}
+                        disabled={closed || placing}
+                        data-testid={`bet-or-inn${inn}-o${ov}-under`}
+                        className={`py-1.5 rounded text-[10px] font-bold border transition ${
+                          closed ? "border-white/5 text-slate-500 cursor-not-allowed"
+                          : "border-fuchsia-400/40 text-fuchsia-200 bg-fuchsia-500/10 hover:border-fuchsia-400/70"
+                        }`}
+                      >
+                        Under · {info.under ?? "—"}x
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
