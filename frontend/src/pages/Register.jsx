@@ -57,7 +57,7 @@ export default function Register() {
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-green-500 grid place-items-center shadow-[0_0_30px_rgba(34,211,238,0.45)] mb-3">
             <Plane className="w-7 h-7 text-black" strokeWidth={2.5} />
           </div>
-          <h1 className="font-heading text-3xl font-black tracking-tighter">Join AeroX</h1>
+          <h1 className="font-heading text-3xl font-black tracking-tighter bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent">Join GoWin365</h1>
           <div className="text-slate-400 text-sm mt-1 flex items-center gap-1"><Gift className="w-4 h-4 text-green-400" /> ₹50 signup bonus</div>
         </div>
 

@@ -24,7 +24,7 @@ export default function AdminDashboard() {
     <div className="space-y-6" data-testid="admin-dashboard">
       <div>
         <h1 className="font-heading text-3xl font-black">Dashboard</h1>
-        <p className="text-slate-400 text-sm mt-1">Live overview of your AeroX platform.</p>
+        <p className="text-slate-400 text-sm mt-1">Live overview of your GoWin365 platform.</p>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">

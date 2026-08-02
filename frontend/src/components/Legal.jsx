@@ -26,7 +26,7 @@ export const TERMS_TEXT = `AeroX Crash — Terms of Use & House Rules
    account you submit. Requested amount is locked from your balance until paid or rejected.
 
 6. Bonuses
-   Signup bonus, daily bonus and referral bonus are promotional credits. AeroX may revoke
+   Signup bonus, daily bonus and referral bonus are promotional credits. GoWin365 may revoke
    bonuses if abuse is detected.
 
 7. Prohibited conduct
@@ -34,8 +34,8 @@ export const TERMS_TEXT = `AeroX Crash — Terms of Use & House Rules
    immediate account block and forfeiture of balance.
 
 8. Liability
-   AeroX Crash is a game of chance. Play responsibly. Never bet more than you can afford
-   to lose. AeroX is not responsible for any financial loss.
+   GoWin365 is a game of chance. Play responsibly. Never bet more than you can afford
+   to lose. GoWin365 is not responsible for any financial loss.
 
 9. Changes
    These terms may be updated at any time. Continued use of the platform after changes
@@ -43,7 +43,7 @@ export const TERMS_TEXT = `AeroX Crash — Terms of Use & House Rules
 
 By clicking "I agree" you confirm you are 18+ and accept these terms in full.`;
 
-export const PRIVACY_TEXT = `AeroX Crash — Privacy Policy
+export const PRIVACY_TEXT = `GoWin365 — Privacy Policy
 
 Data we collect
    • Email address, name, referral code, IP address at signup.

@@ -182,7 +182,7 @@ export default function Game() {
   const canCashout = isFlying && myBet && myBet.round_id === state.round_id && myBet.status === "active";
 
   if (gs.ready && gs.crash === false) {
-    return <MaintenanceScreen gameName="AeroX Crash" backTo="/games" />;
+    return <MaintenanceScreen gameName="Crash" backTo="/games" />;
   }
 
   return (

@@ -74,7 +74,7 @@ export default function AdminGameControl() {
         </div>
         <p className="text-sm text-slate-400">Turn a game OFF to show players an <span className="text-yellow-300">Under Maintenance</span> screen. Bets are blocked while off.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <MaintCard id="crash"    label="AeroX Crash" icon={Plane} enabled={gs.crash}    live={gs.crash_live}    onToggle={(v) => toggleGame("crash", v)} />
+          <MaintCard id="crash"    label="Crash" icon={Plane} enabled={gs.crash}    live={gs.crash_live}    onToggle={(v) => toggleGame("crash", v)} />
           <MaintCard id="roulette" label="Roulette"    icon={Disc}  enabled={gs.roulette} live={gs.roulette_live} onToggle={(v) => toggleGame("roulette", v)} />
         </div>
       </div>

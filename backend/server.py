@@ -1488,7 +1488,7 @@ async def admin_update_ticket(ticket_id: str, body: SupportTicketUpdateIn, admin
 # --------------------- Root ---------------------
 @api.get("/")
 async def root():
-    return {"app": "AeroX Crash", "status": "ok"}
+    return {"app": "GoWin365", "status": "ok"}
 
 
 app.include_router(api)

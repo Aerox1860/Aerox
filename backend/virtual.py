@@ -76,8 +76,8 @@ TEAMS_DOMESTIC = [
     {"name": "Gujarat",        "short": "GUJ", "flag": "🟪", "color": "#7C3AED"},
 ]
 
-LEAGUE_INTERNATIONAL = "AeroX International T20"
-LEAGUE_DOMESTIC      = "AeroX Domestic Super League"
+LEAGUE_INTERNATIONAL = "GoWin365 International T20"
+LEAGUE_DOMESTIC      = "GoWin365 Domestic Super League"
 
 # Player pool — realistic, stadium-friendly pseudonyms (no real cricketer names to avoid rights issues)
 _PLAYER_FIRSTS = [
@@ -298,8 +298,17 @@ NEXT_BALL_MARKET = ("0", "1", "2", "3", "4", "6", "W")
 
 
 def _project_runs_at_over(m: Dict[str, Any], target_over: int) -> Optional[float]:
-    """Project a team's total runs at end of `target_over` overs, based on current progress.
-    Returns None if the innings has already passed that over (settled)."""
+    """Project a team's total runs at end of `target_over` overs.
+
+    Uses a T20-realistic blended run-rate:
+      • Prior (baseline): ~8.4 rpo for early-innings pace, ~9.5 rpo later on.
+      • Observed: actual runs / balls so far this innings.
+      • Innings-2 anchor: also blends the pace innings-1 was scoring at.
+      • Striker bonus: bumps rate if current batter has SR > 150 this innings.
+
+    Weight of the prior fades as more balls are bowled, so by mid-innings the
+    projection is dominated by observed pace. This prevents the "0/0 → project 24
+    at 6 overs" degenerate case (which sat at ~4 rpo — nowhere near realistic)."""
     if not m.get("batting"): return None
     sc = m["scores"].get(m["batting"], {})
     balls = sc.get("balls", 0)
@@ -308,11 +317,54 @@ def _project_runs_at_over(m: Dict[str, Any], target_over: int) -> Optional[float
     target_balls = target_over * BALLS_PER_OVER
     if balls >= target_balls:
         return None   # market closed
-    # Realistic projection: current runs + expected run rate for remaining balls.
-    current_rr_ball = (runs + 4) / max(1, balls + 6)  # smoothed
+
+    # ── Baseline T20 prior ────────────────────────────────────────────
+    # Powerplay (o1-6) tends to be ~8.4 rpo; middle (o7-15) ~8.0 rpo;
+    # death (o16-20) ~11.5 rpo. Blend a smooth per-ball prior around the
+    # projected over window.
+    prior_rr_ball = 1.40  # ~8.4 rpo default
+    if target_over >= 15:
+        prior_rr_ball = 1.55   # ~9.3 rpo (accounts for death-over acceleration)
+    elif target_over >= 10:
+        prior_rr_ball = 1.45   # ~8.7 rpo
+
+    # ── Innings-2 anchor: use pace innings-1 was scoring at ───────────
+    inn1_rrb = None
+    if m["phase"] in ("break", "innings2"):
+        # find bowling team's score entry from innings 1
+        for team_short, s in m["scores"].items():
+            if team_short != m["batting"]:
+                b1, r1 = s.get("balls", 0), s.get("runs", 0)
+                if b1 >= 6:
+                    inn1_rrb = r1 / b1
+                break
+    if inn1_rrb is not None:
+        # Innings-2 chases usually track ~5% above innings-1 (batters know target)
+        prior_rr_ball = 0.5 * prior_rr_ball + 0.5 * (inn1_rrb * 1.05)
+
+    # ── Observed rate (this innings, this team) ───────────────────────
+    observed_rr_ball = (runs / balls) if balls > 0 else prior_rr_ball
+
+    # ── Blend: prior dominates when balls small, observed when balls big ─
+    w_obs = min(1.0, balls / 30.0)     # 30 balls (5 overs) to fully trust observed
+    rr_ball = w_obs * observed_rr_ball + (1 - w_obs) * prior_rr_ball
+
+    # ── Striker bonus: if striker's SR this innings > 150, bump projection ─
+    striker_bonus = 1.0
+    sq = m.get("squads", {}).get(m["batting"])
+    if sq and m.get("striker_idx") is not None and 0 <= m["striker_idx"] < len(sq):
+        st = sq[m["striker_idx"]]
+        sb, sr_runs = st.get("balls", 0), st.get("runs", 0)
+        if sb >= 6:  # need at least an over of data
+            sr = (sr_runs / sb) * 100  # strike rate (runs/100 balls)
+            if sr >= 250:   striker_bonus = 1.10
+            elif sr >= 200: striker_bonus = 1.07
+            elif sr >= 150: striker_bonus = 1.04
+            elif sr <= 75:  striker_bonus = 0.95
+
     remaining = target_balls - balls
-    wkt_penalty = 0.85 if wickets >= 6 else 0.95 if wickets >= 4 else 1.0
-    projected = runs + remaining * current_rr_ball * wkt_penalty
+    wkt_penalty = 0.82 if wickets >= 7 else 0.90 if wickets >= 5 else 0.97 if wickets >= 3 else 1.0
+    projected = runs + remaining * rr_ball * wkt_penalty * striker_bonus
     return round(projected, 1)
 
 

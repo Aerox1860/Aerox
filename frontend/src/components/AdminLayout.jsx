@@ -24,7 +24,7 @@ export default function AdminLayout() {
             <Plane className="w-5 h-5 text-black" strokeWidth={2.5} />
           </div>
           <div>
-            <div className="font-heading font-black tracking-tight leading-none">AeroX</div>
+            <div className="font-heading font-black tracking-tight leading-none bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent">GoWin365</div>
             <div className="text-[10px] uppercase tracking-widest text-slate-500">Admin</div>
           </div>
         </div>
@@ -65,7 +65,7 @@ export default function AdminLayout() {
             <Plane className="w-4 h-4 text-black" strokeWidth={2.5} />
           </div>
           <div>
-            <div className="font-heading font-black text-sm">AeroX Admin</div>
+            <div className="font-heading font-black text-sm">GoWin365 Admin</div>
           </div>
         </div>
         <button onClick={() => { logout(); nav("/login"); }} className="btn-ghost px-3 py-1.5 rounded-lg text-xs">Logout</button>

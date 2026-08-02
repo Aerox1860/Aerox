@@ -1,7 +1,7 @@
-# AeroX Crash (gowin365x.com) — PRD
+# GoWin365 (gowin365x.com) — PRD
 
 ## Original Problem Statement
-AeroX Crash is a real-time aviation "crash" style multiplayer game where players bet virtual balance, watch a multiplier rise, and cash out before the plane crashes. Deposits and withdrawals are handled manually between user and admin via UPI/UTR — no payment gateway, no screenshots. UTR duplicates are auto-rejected. Includes wallet, referrals, leaderboard, live chat, bonuses, and full admin portal.
+GoWin365 is a real-time crash-style multiplayer casino + cricket betting platform. Players bet virtual balance, watch a multiplier rise, and cash out before it crashes. Also includes live cricket, virtual cricket engine, roulette. Deposits and withdrawals are handled manually between user and admin via UPI/UTR — no payment gateway. UTR duplicates are auto-rejected. Includes wallet, referrals, leaderboard, live chat, bonuses, and full admin portal.
 
 ## User Choices Confirmed
 - Auth: Email + Password only (no OTP)
@@ -105,6 +105,11 @@ AeroX Crash is a real-time aviation "crash" style multiplayer game where players
 - **Admin Virtual P&L (Feb 2026)**: `GET /api/virtual/admin/stats` (admin-only) returns total_wagered, total_paid_out, house_profit + per-market breakdown + current bias_mode. Displayed on the Game Control page as a 3-tile summary (wagered / paid out / house profit — green or red) plus a per-market table (Bets · Wagered · Paid Out · P&L).
 - **Virtual House Bias (Feb 2026)**: `POST /api/virtual/admin/bias` sets `normal / aggressive / ruthless`. Bias affects: (a) house margin baked into decimal odds — Normal 5%, Aggressive 12%, Ruthless 22%. (b) projected run lines shifted upward — Normal ×1.00, Aggressive ×1.06, Ruthless ×1.14. Persisted in `settings.virtual_bias_mode`, loaded on startup. All active-match odds recompute + broadcast immediately when bias changes. Also: Innings-2 markets are HIDDEN until Innings 1 completes; Toss card auto-removed after toss done; 20-Over Total Runs label clarified; match_winner odds display green ▲/red ▼ movement indicators when odds change ball-by-ball; "Live betting" label on /in-play changed to "Live cricket".
 - Reports: top winners, recent rounds
+
+## v1.6 additions (2026-02-08)
+- **Rebrand AeroX → GoWin365**: text-only gold-gradient wordmark across Player + Admin layouts, Login, Register, Games catalog, Legal (Terms/Privacy), Referrals share text, Virtual Cricket league names, backend root endpoint. HTML `<title>` now "GoWin365 — Play. Win. Cash out." with a text-based SVG data-URL favicon (gold "G" on black) — no image asset dependency.
+- **Header side-drawer menu**: hamburger button in PlayerLayout header opens a full-height side drawer with sections **Cricket** (Live Matches, Virtual Cricket) · **Casino** (All Games, Crash, Roulette) · **Account** (Wallet, Profile, Referrals, Leaderboard, Support) + red **Logout** at the bottom. Uses backdrop-click + close button, active-route highlighting, and drawer testids for QA.
+- **Over-runs projection fix**: `_project_runs_at_over` in `virtual.py` now uses a T20-realistic prior (~8.4 rpo baseline, ~9.3 at 10-over target, ~9.5 at 15-over target) blended with observed pace (observed weight fades in over the first 5 overs). In innings 2 it additionally anchors to innings-1's actual rpo (+5% chase pace). Also applies a striker-bonus factor (up to ×1.10 for a striker with SR ≥ 250 in the current innings). Fixes the degenerate "6-over line = 24 runs at start of innings 2" scenario.
 
 ## Prioritized Backlog / P0/P1/P2
 

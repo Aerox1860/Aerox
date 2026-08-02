@@ -5,7 +5,7 @@ import { useGamesStatus } from "@/lib/useGamesStatus";
 const games = [
   {
     id: "aerox",
-    name: "AeroX Crash",
+    name: "Crash",
     tagline: "Fly high. Cash out before it crashes.",
     icon: Plane,
     to: "/game",

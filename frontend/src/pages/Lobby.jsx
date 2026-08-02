@@ -69,7 +69,7 @@ export default function Lobby() {
               <Play className="w-4 h-4" /> Browse games
             </Link>
             <Link to="/game" data-testid="join-game-btn" className="btn-cyan px-5 py-3 rounded-xl flex items-center gap-2">
-              <Plane className="w-4 h-4" /> Play AeroX
+              <Plane className="w-4 h-4" /> Play Crash
             </Link>
             <button onClick={claimDaily} className="btn-ghost px-5 py-3 rounded-xl flex items-center gap-2" data-testid="claim-daily-btn">
               <Gift className="w-4 h-4 text-green-400" /> Daily bonus

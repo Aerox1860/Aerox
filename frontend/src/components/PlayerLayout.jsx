@@ -1,5 +1,9 @@
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Home, Gamepad2, Wallet as WalletIcon, Radio, User, LogOut, Plane } from "lucide-react";
+import { Outlet, NavLink, useNavigate, Link } from "react-router-dom";
+import { useState } from "react";
+import {
+  Home, Gamepad2, Wallet as WalletIcon, Radio, User, LogOut,
+  Menu, X, Trophy, Share2, LifeBuoy, ChevronRight, Zap, Dices
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const items = [
@@ -10,19 +14,59 @@ const items = [
   { to: "/profile", label: "Me", icon: User, testid: "nav-profile" },
 ];
 
+// Sections shown in the header side-drawer
+const drawerSections = [
+  {
+    title: "Cricket",
+    items: [
+      { to: "/in-play",  label: "Live Matches (In-Play)", icon: Radio },
+      { to: "/virtual",  label: "Virtual Cricket",        icon: Zap },
+    ],
+  },
+  {
+    title: "Casino",
+    items: [
+      { to: "/games",           label: "All Games",  icon: Gamepad2 },
+      { to: "/game",            label: "Crash",      icon: Zap },
+      { to: "/games/roulette",  label: "Roulette",   icon: Dices },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { to: "/wallet",       label: "Wallet",       icon: WalletIcon },
+      { to: "/profile",      label: "Profile",      icon: User },
+      { to: "/referrals",    label: "Referrals",    icon: Share2 },
+      { to: "/leaderboard",  label: "Leaderboard",  icon: Trophy },
+      { to: "/support",      label: "Support",      icon: LifeBuoy },
+    ],
+  },
+];
+
 export default function PlayerLayout() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const closeDrawer = () => setDrawerOpen(false);
+  const doLogout = () => { closeDrawer(); logout(); nav("/login"); };
 
   return (
     <div className="min-h-screen text-slate-100 pb-24">
       {/* Top bar */}
       <header className="sticky top-0 z-40 glass px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-green-500 grid place-items-center shadow-[0_0_18px_rgba(34,211,238,0.35)]">
-            <Plane className="w-4 h-4 text-black" strokeWidth={2.5} />
-          </div>
-          <div className="font-heading font-black tracking-tight text-lg">AeroX</div>
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="w-9 h-9 rounded-lg grid place-items-center bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+            data-testid="open-menu-btn"
+            aria-label="Open menu"
+          >
+            <Menu className="w-4 h-4 text-slate-200" strokeWidth={2.5} />
+          </button>
+          <Link to="/" className="font-heading font-black tracking-tight text-lg bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent" data-testid="brand-text">
+            GoWin365
+          </Link>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right" data-testid="topbar-balance">
@@ -30,7 +74,7 @@ export default function PlayerLayout() {
             <div className="font-mono font-bold text-cyan-300">₹ {user?.balance?.toFixed(2)}</div>
           </div>
           <button
-            onClick={() => { logout(); nav("/login"); }}
+            onClick={doLogout}
             className="btn-ghost px-3 py-2 rounded-lg text-xs flex items-center gap-1"
             data-testid="logout-btn"
           >
@@ -38,6 +82,85 @@ export default function PlayerLayout() {
           </button>
         </div>
       </header>
+
+      {/* Side drawer */}
+      {drawerOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm animate-in fade-in duration-150"
+            onClick={closeDrawer}
+            data-testid="drawer-backdrop"
+          />
+          <aside
+            className="fixed left-0 top-0 bottom-0 z-[61] w-[84vw] max-w-[320px] bg-[#0b1120] border-r border-white/10 shadow-2xl overflow-y-auto animate-in slide-in-from-left duration-200"
+            data-testid="side-drawer"
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-4 bg-[#0b1120] border-b border-white/10">
+              <div className="flex flex-col">
+                <span className="font-heading font-black text-lg bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent">
+                  GoWin365
+                </span>
+                <span className="text-[10px] uppercase tracking-widest text-slate-500">Menu</span>
+              </div>
+              <button
+                onClick={closeDrawer}
+                className="w-8 h-8 rounded-lg grid place-items-center bg-white/5 hover:bg-white/10 border border-white/10"
+                data-testid="close-menu-btn"
+                aria-label="Close menu"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-2 py-3 space-y-4">
+              {drawerSections.map((sec) => (
+                <div key={sec.title}>
+                  <div className="px-3 pb-1 text-[10px] uppercase tracking-widest text-slate-500 font-semibold">
+                    {sec.title}
+                  </div>
+                  <div className="space-y-1">
+                    {sec.items.map((it) => (
+                      <NavLink
+                        key={it.to}
+                        to={it.to}
+                        end={it.to === "/"}
+                        onClick={closeDrawer}
+                        data-testid={`drawer-link-${it.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                            isActive
+                              ? "bg-cyan-500/15 text-cyan-200 border border-cyan-400/20"
+                              : "text-slate-300 hover:bg-white/5 hover:text-white"
+                          }`
+                        }
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <it.icon className={`w-4 h-4 ${isActive ? "text-cyan-300" : "text-slate-400"}`} strokeWidth={2} />
+                            <span className="flex-1">{it.label}</span>
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                          </>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <div className="pt-2 border-t border-white/10">
+                <button
+                  onClick={doLogout}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-300 hover:bg-red-500/10 transition-colors"
+                  data-testid="drawer-logout-btn"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="flex-1 text-left">Logout</span>
+                </button>
+              </div>
+            </div>
+          </aside>
+        </>
+      )}
 
       <main className="max-w-5xl mx-auto px-4 py-4">
         <Outlet />

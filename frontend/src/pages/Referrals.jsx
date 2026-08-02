@@ -12,7 +12,7 @@ export default function Referrals() {
   const copy = (text) => { navigator.clipboard?.writeText(text); toast.success("Copied"); };
   const share = async () => {
     if (navigator.share) {
-      try { await navigator.share({ title: "Join me on AeroX", text: "Fly with me on AeroX and earn a ₹50 signup bonus!", url: link }); } catch {}
+      try { await navigator.share({ title: "Join me on GoWin365", text: "Play on GoWin365 and earn a ₹50 signup bonus!", url: link }); } catch {}
     } else copy(link);
   };
 

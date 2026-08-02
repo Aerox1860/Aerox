@@ -56,11 +56,11 @@ export default function Login({ adminMode = false }) {
           }`}>
             {isAdminMode ? <ShieldCheck className="w-7 h-7 text-black" strokeWidth={2.5} /> : <Plane className="w-7 h-7 text-black" strokeWidth={2.5} />}
           </div>
-          <h1 className="font-heading text-4xl font-black tracking-tighter">
-            {isAdminMode ? "AeroX Admin" : "AeroX"}
+          <h1 className="font-heading text-4xl font-black tracking-tighter bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent">
+            {isAdminMode ? "GoWin365 Admin" : "GoWin365"}
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            {isAdminMode ? "Operator portal — restricted access" : "Fly high. Cash out before the crash."}
+            {isAdminMode ? "Operator portal — restricted access" : "Play. Win. Cash out."}
           </p>
         </div>
 
