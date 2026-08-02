@@ -30,17 +30,22 @@ logger = logging.getLogger("aerox.virtual")
 
 
 # ─────────────────────────── Configuration ───────────────────────────
-FORMAT_OVERS   = 5          # 5-over match
+FORMAT_OVERS   = 20         # T20 match (20 overs per side)
 BALLS_PER_OVER = 6
-BALL_TICK_SECS = 2.0        # 2s per ball → 12s/over → ~2 min per innings
-TOSS_SECS         = 6
-INNINGS_BREAK_SECS = 10
-RESULT_SECS        = 15
+BALL_TICK_SECS = 6.0        # 6s per ball → 36s/over → ~12 min per innings
+
+# Match phases
+PRE_MATCH_SECS     = 180     # 3 min window for betting BEFORE toss
+TOSS_SECS          = 25      # toss animation (25s)
+LINEUP_SECS        = 60      # team lineup display (1 min)
+INNINGS_BREAK_SECS = 90      # innings break (1.5 min)
+RESULT_SECS        = 60      # post-match result view (1 min)
 MAX_WICKETS   = 10
 
-# Concurrent matches
+# Concurrent matches (rooms)
 CONCURRENT_MATCHES = 3
 
+# ─────────────────────────── Team pool ──────────────────────────────
 TEAMS_INTERNATIONAL = [
     {"name": "India",         "short": "IND", "flag": "🇮🇳", "color": "#0B57D0"},
     {"name": "Australia",     "short": "AUS", "flag": "🇦🇺", "color": "#F6C90E"},
@@ -54,7 +59,24 @@ TEAMS_INTERNATIONAL = [
     {"name": "Afghanistan",   "short": "AFG", "flag": "🇦🇫", "color": "#0038A8"},
 ]
 
-LEAGUE_NAME = "AeroX Virtual T5 International"
+# Indian domestic (Ranji-style) teams
+TEAMS_DOMESTIC = [
+    {"name": "Mumbai",         "short": "MUM", "flag": "🔵", "color": "#0055A4"},
+    {"name": "Karnataka",      "short": "KAR", "flag": "🟡", "color": "#F1C232"},
+    {"name": "Tamil Nadu",     "short": "TN",  "flag": "🟠", "color": "#E17223"},
+    {"name": "Delhi",          "short": "DEL", "flag": "🔴", "color": "#B22222"},
+    {"name": "Bengal",         "short": "BEN", "flag": "🟢", "color": "#2F855A"},
+    {"name": "Baroda",         "short": "BAR", "flag": "🟣", "color": "#6B46C1"},
+    {"name": "Kerala",         "short": "KER", "flag": "🟢", "color": "#0F766E"},
+    {"name": "Punjab",         "short": "PUN", "flag": "🟠", "color": "#EA580C"},
+    {"name": "Rajasthan",      "short": "RAJ", "flag": "🌸", "color": "#DB2777"},
+    {"name": "Uttar Pradesh",  "short": "UP",  "flag": "🟨", "color": "#CA8A04"},
+    {"name": "Hyderabad",      "short": "HYD", "flag": "⚪", "color": "#334155"},
+    {"name": "Gujarat",        "short": "GUJ", "flag": "🟪", "color": "#7C3AED"},
+]
+
+LEAGUE_INTERNATIONAL = "AeroX International T20"
+LEAGUE_DOMESTIC      = "AeroX Domestic Super League"
 
 
 # Ball outcome distribution — tuned for a compact 5-over game.
@@ -89,16 +111,25 @@ def _pick_ball_outcome() -> str:
     return "0"
 
 
-def _fresh_match_shell(match_no: int) -> Dict[str, Any]:
-    teams = random.sample(TEAMS_INTERNATIONAL, 2)
+def _fresh_match_shell(match_no: int, tour_type: str = "international") -> Dict[str, Any]:
+    pool = TEAMS_INTERNATIONAL if tour_type == "international" else TEAMS_DOMESTIC
+    league = LEAGUE_INTERNATIONAL if tour_type == "international" else LEAGUE_DOMESTIC
+    teams = random.sample(pool, 2)
+    # Schedule: pre-match window starts NOW, toss at now+PRE_MATCH_SECS
+    now = now_utc()
+    toss_at = datetime.fromtimestamp(now.timestamp() + PRE_MATCH_SECS, tz=timezone.utc)
+    play_at = datetime.fromtimestamp(toss_at.timestamp() + TOSS_SECS + LINEUP_SECS, tz=timezone.utc)
     return {
         "id":          str(uuid.uuid4()),
         "match_no":    match_no,
-        "league":      LEAGUE_NAME,
+        "league":      league,
+        "tour_type":   tour_type,       # "international" | "domestic"
         "format":      f"T{FORMAT_OVERS}",
         "teams":       [dict(t) for t in teams],  # [team1, team2]
-        "phase":       "pre_toss",   # pre_toss | toss | innings1 | break | innings2 | completed
-        "phase_end":   iso(now_utc()),
+        "phase":       "pre_match",   # pre_match | toss | lineup | innings1 | break | innings2 | completed
+        "phase_end":   iso(toss_at),
+        "toss_at":     iso(toss_at),
+        "play_at":     iso(play_at),
         "toss_winner": None,          # short name
         "toss_choice": None,          # "bat" | "bowl"
         "batting":     None,          # short of batting team in current innings
@@ -125,7 +156,7 @@ def _fresh_match_shell(match_no: int) -> Dict[str, Any]:
 def _match_winner_odds(m: Dict[str, Any]) -> Dict[str, float]:
     t1, t2 = m["teams"][0]["short"], m["teams"][1]["short"]
 
-    if m["phase"] in ("pre_toss", "toss"):
+    if m["phase"] in ("pre_match", "toss", "lineup"):
         return {t1: 1.95, t2: 1.95}
 
     if m["phase"] == "innings1":
@@ -172,7 +203,7 @@ def _match_winner_odds(m: Dict[str, Any]) -> Dict[str, float]:
 
 
 def _toss_odds(m: Dict[str, Any]) -> Dict[str, float]:
-    if m["phase"] == "pre_toss":
+    if m["phase"] == "pre_match":
         t1, t2 = m["teams"][0]["short"], m["teams"][1]["short"]
         return {t1: 1.95, t2: 1.95}
     # locked after toss
@@ -181,9 +212,9 @@ def _toss_odds(m: Dict[str, Any]) -> Dict[str, float]:
 
 
 def _total_runs_odds(m: Dict[str, Any]) -> Dict[str, Any]:
-    # Line = base 55 (T5 par) at pre-match. Adjusts once innings1 completes.
-    if m["phase"] in ("pre_toss", "toss"):
-        line = 105.0
+    # Line = base 320 (T20 par) at pre-match. Adjusts once innings1 completes.
+    if m["phase"] in ("pre_match", "toss", "lineup"):
+        line = 320.0
         return {"line": line, "over": 1.90, "under": 1.90}
 
     t1, t2 = m["teams"][0]["short"], m["teams"][1]["short"]
@@ -256,13 +287,16 @@ class VirtualEngine:
 
     # ─── Match lifecycle ───
     async def start_loops(self):
-        for _ in range(CONCURRENT_MATCHES):
-            asyncio.create_task(self._match_slot_loop())
+        # 3 concurrent rooms. Slot 0 always domestic, slots 1,2 international
+        # → users see a mix of both tour types at all times.
+        for slot in range(CONCURRENT_MATCHES):
+            tour = "domestic" if slot == 0 else "international"
+            asyncio.create_task(self._match_slot_loop(tour))
 
-    async def _match_slot_loop(self):
+    async def _match_slot_loop(self, tour_type: str):
         while True:
             self._match_counter += 1
-            m = _fresh_match_shell(self._match_counter)
+            m = _fresh_match_shell(self._match_counter, tour_type=tour_type)
             async with self._lock:
                 self.matches[m["id"]] = m
             try:
@@ -282,16 +316,15 @@ class VirtualEngine:
         await asyncio.sleep(secs)
 
     async def _run_one_match(self, m: Dict[str, Any]):
-        # Pre-toss window (allows toss bets)
-        m["phase"] = "pre_toss"
-        await self._phase_wait(m, TOSS_SECS)
+        # Pre-match window — 3 min for pre-toss bets (winner + toss + total_runs all open)
+        m["phase"] = "pre_match"
+        await self._phase_wait(m, PRE_MATCH_SECS)
 
-        # Toss
+        # Toss — 25s animated window (toss market closed at phase change)
         toss_team = random.choice(m["teams"])
         m["toss_winner"] = toss_team["short"]
         m["toss_choice"] = random.choice(["bat", "bowl"])
         m["phase"] = "toss"
-        # Determine batting for innings 1
         if m["toss_choice"] == "bat":
             bat_short = toss_team["short"]
         else:
@@ -303,8 +336,14 @@ class VirtualEngine:
         m["commentary"].insert(0, {
             "over": "-", "text": f"{toss_team['short']} won the toss & chose to {m['toss_choice']}",
         })
-        # Settle toss bets
+        # Settle toss bets right after the toss is announced
         await self._settle_market(m, "toss_winner", winning_selection=m["toss_winner"])
+        await self._phase_wait(m, TOSS_SECS)
+
+        # Lineup screen — 1 min showcasing both team lists / matchup
+        m["phase"] = "lineup"
+        m["commentary"].insert(0, {"over": "-", "text": "Teams taking the field — match starts shortly"})
+        await self._phase_wait(m, LINEUP_SECS)
 
         # innings 1
         m["phase"] = "innings1"
@@ -312,7 +351,6 @@ class VirtualEngine:
 
         # Innings break
         m["phase"] = "break"
-        # swap batting side
         m["target"]  = m["scores"][bat_short]["runs"] + 1
         m["batting"] = bowl_short
         m["bowling"] = bat_short
@@ -384,15 +422,40 @@ class VirtualEngine:
             if not first and (m["scores"][bat]["runs"] >= (m["target"] or 0)): break
 
     # ─── Public serializers ───
+    def _recent_over_commentary(self, m: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return only the CURRENT + PREVIOUS over's ball events plus toss/break notes.
+        User requirement: hide older overs from the feed to reduce clutter.
+        """
+        sc = m["scores"].get(m.get("batting") or "", {})
+        current_over = (sc.get("balls", 0) // BALLS_PER_OVER)
+        keep_overs = {current_over, max(0, current_over - 1)}
+        out = []
+        for c in m["commentary"]:
+            over_str = str(c.get("over", ""))
+            # keep non-ball notes (toss / break / result)
+            if over_str.startswith("-") or over_str == "":
+                out.append(c)
+                continue
+            try:
+                ov_idx = int(over_str.split(".")[0])
+            except Exception:
+                out.append(c)
+                continue
+            if ov_idx in keep_overs:
+                out.append(c)
+        return out[:24]
+
     def _public_match(self, m: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "id": m["id"],
-            "match_no": m["match_no"],
             "league": m["league"],
+            "tour_type": m.get("tour_type", "international"),
             "format": m["format"],
             "teams": m["teams"],
             "phase": m["phase"],
             "phase_end": m["phase_end"],
+            "toss_at": m.get("toss_at"),
+            "play_at": m.get("play_at"),
             "toss_winner": m["toss_winner"],
             "toss_choice": m["toss_choice"],
             "batting": m["batting"],
@@ -401,7 +464,7 @@ class VirtualEngine:
             "scores": m["scores"],
             "target": m["target"],
             "winner": m["winner"],
-            "commentary": m["commentary"][:24],
+            "commentary": self._recent_over_commentary(m),
             "odds": m["odds"],
         }
 
@@ -419,7 +482,7 @@ class VirtualEngine:
                 raise HTTPException(400, "Invalid team")
             odds = m["odds"]["match_winner"].get(selection, 0)
         elif market == "toss_winner":
-            if m["phase"] not in ("pre_toss",):
+            if m["phase"] != "pre_match":
                 raise HTTPException(400, "Toss market closed")
             if selection not in [t["short"] for t in m["teams"]]:
                 raise HTTPException(400, "Invalid team")
@@ -560,8 +623,11 @@ def build_router(db, credit_fn, debit_fn, current_user_dep):
         await engine.start_loops()
 
     @router.get("/matches")
-    async def list_matches():
-        return {"matches": [engine._public_match(m) for m in engine.matches.values()]}
+    async def list_matches(tour: Optional[str] = None):
+        rows = [engine._public_match(m) for m in engine.matches.values()]
+        if tour in ("international", "domestic"):
+            rows = [r for r in rows if r.get("tour_type") == tour]
+        return {"matches": rows}
 
     @router.get("/matches/{match_id}")
     async def get_match(match_id: str):

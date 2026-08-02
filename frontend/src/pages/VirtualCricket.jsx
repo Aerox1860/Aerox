@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Radio, Timer, Trophy, X, ChevronRight, TrendingUp, ArrowLeft, Loader2, Zap, Coins } from "lucide-react";
+import { Radio, Timer, Trophy, X, ChevronRight, TrendingUp, ArrowLeft, Loader2, Zap, Coins, Globe2, MapPin, Coins as CoinIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError, wsUrl } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
-const CHIPS = [10, 50, 100, 500, 1000];
+// Fixed stake chips per product spec: 100, 500, 1000, 5000, 10000
+const CHIPS = [100, 500, 1000, 5000, 10000];
 
 /**
  * Virtual Cricket arena — lists live simulated matches, streams ball-by-ball
@@ -17,6 +18,7 @@ export default function VirtualCricket() {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openMatchId, setOpenMatchId] = useState(null);
+  const [tour, setTour] = useState("international"); // international | domestic
 
   // Poll list every 4s (WebSocket is per-match; the lobby just needs occasional refresh)
   useEffect(() => {
@@ -33,7 +35,14 @@ export default function VirtualCricket() {
     return () => { alive = false; clearInterval(t); };
   }, []);
 
+  const filteredMatches = useMemo(
+    () => matches.filter((m) => (m.tour_type || "international") === tour),
+    [matches, tour],
+  );
+
   const openMatch = matches.find((m) => m.id === openMatchId) || null;
+  const intlCount     = matches.filter((m) => (m.tour_type || "international") === "international").length;
+  const domesticCount = matches.filter((m) => m.tour_type === "domestic").length;
 
   return (
     <div className="space-y-5" data-testid="virtual-page">
@@ -45,12 +54,20 @@ export default function VirtualCricket() {
             </div>
             <h1 className="font-heading text-2xl md:text-3xl font-black">Virtual Cricket</h1>
           </div>
-          <p className="text-slate-400 text-sm mt-1">Simulated T5 matches · Bet on winner, toss & total runs · Live odds every ball.</p>
+          <p className="text-slate-400 text-sm mt-1">T20 matches · Bet on winner, toss & total runs · Live odds every ball · Cashout on match winner.</p>
         </div>
         <div className="hidden md:flex items-center gap-2 text-xs text-slate-400">
           <Zap className="w-3.5 h-3.5 text-yellow-300" />
           {matches.length} live rooms
         </div>
+      </div>
+
+      {/* International / Domestic segmented control */}
+      <div className="flex gap-2" role="tablist">
+        <TourTab active={tour === "international"} onClick={() => setTour("international")}
+                 icon={Globe2} label="International" count={intlCount} testid="tour-international" />
+        <TourTab active={tour === "domestic"} onClick={() => setTour("domestic")}
+                 icon={MapPin} label="Domestic" count={domesticCount} testid="tour-domestic" />
       </div>
 
       {loading ? (
@@ -60,8 +77,13 @@ export default function VirtualCricket() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4" data-testid="virtual-grid">
           <AnimatePresence mode="popLayout">
-            {matches.map((m) => <MatchTile key={m.id} match={m} onOpen={() => setOpenMatchId(m.id)} />)}
+            {filteredMatches.map((m) => <MatchTile key={m.id} match={m} onOpen={() => setOpenMatchId(m.id)} />)}
           </AnimatePresence>
+          {filteredMatches.length === 0 && (
+            <div className="col-span-full card-surface p-8 text-center text-slate-400">
+              No {tour} matches in this rotation — try the other tab.
+            </div>
+          )}
         </div>
       )}
 
@@ -75,6 +97,20 @@ export default function VirtualCricket() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function TourTab({ active, onClick, icon: Icon, label, count, testid }) {
+  return (
+    <button
+      onClick={onClick}
+      data-testid={testid}
+      className={`px-4 py-2 rounded-full text-xs font-semibold inline-flex items-center gap-2 transition
+        ${active ? "bg-yellow-500/15 border border-yellow-400/60 text-yellow-200" : "border border-white/10 text-slate-300 hover:border-white/20"}`}
+    >
+      <Icon className="w-3.5 h-3.5" />
+      {label} <span className="opacity-60">({count})</span>
+    </button>
   );
 }
 
@@ -96,20 +132,22 @@ function MatchTile({ match, onOpen }) {
       <div className="flex items-center justify-between relative">
         <div className="text-[10px] uppercase tracking-widest text-slate-400 flex items-center gap-2">
           <span className="px-1.5 py-0.5 rounded border border-white/10">{match.format}</span>
-          <span>Match #{match.match_no}</span>
+          <span className="truncate max-w-[180px]">{match.league}</span>
         </div>
         <PhaseBadge phase={match.phase} />
       </div>
 
       <div className="mt-4 space-y-2.5 relative">
-        <TeamRow team={t1} score={s1} batting={match.batting === t1.short} />
+        <TeamRow team={t1} score={s1} batting={match.batting === t1.short} phase={match.phase} />
         <div className="text-center text-[10px] uppercase tracking-widest text-slate-500">vs</div>
-        <TeamRow team={t2} score={s2} batting={match.batting === t2.short} />
+        <TeamRow team={t2} score={s2} batting={match.batting === t2.short} phase={match.phase} />
       </div>
 
       <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-[11px]">
         <div className="flex items-center gap-2 text-slate-400">
-          <TrendingUp className="w-3 h-3" /> Odds live
+          {match.phase === "pre_match" ? <TileCountdown iso={match.toss_at} label="Toss in" testid="tile-toss-in" />
+           : match.phase === "lineup" ? <TileCountdown iso={match.play_at} label="Play in" testid="tile-play-in" />
+           : <><TrendingUp className="w-3 h-3" /> Odds live</>}
         </div>
         <div className="inline-flex items-center gap-1 text-cyan-300 font-semibold">
           Enter room <ChevronRight className="w-3 h-3" />
@@ -119,7 +157,22 @@ function MatchTile({ match, onOpen }) {
   );
 }
 
-function TeamRow({ team, score, batting }) {
+function TileCountdown({ iso, label, testid }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const target = iso ? new Date(iso).getTime() : 0;
+  const remaining = Math.max(0, Math.round((target - now) / 1000));
+  const mm = Math.floor(remaining / 60);
+  const ss = remaining % 60;
+  return (
+    <span className="inline-flex items-center gap-1 font-mono" data-testid={testid}>
+      <Timer className="w-3 h-3" /> {label} {mm.toString().padStart(2,"0")}:{ss.toString().padStart(2,"0")}
+    </span>
+  );
+}
+
+function TeamRow({ team, score, batting, phase }) {
+  const preLive = ["pre_match", "toss", "lineup"].includes(phase);
   return (
     <div className="flex items-center gap-3">
       <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 grid place-items-center text-lg leading-none">{team.flag}</div>
@@ -130,26 +183,31 @@ function TeamRow({ team, score, batting }) {
         </div>
         <div className="text-[10px] text-slate-500 uppercase tracking-widest">{team.short}</div>
       </div>
-      <div className="text-right font-mono">
-        <div className="text-lg font-bold text-slate-100 leading-none">
-          {score?.runs ?? 0}<span className="text-slate-500 text-xs">/{score?.wickets ?? 0}</span>
+      {preLive ? (
+        <div className="text-[10px] text-slate-500">Yet to bat</div>
+      ) : (
+        <div className="text-right font-mono">
+          <div className="text-lg font-bold text-slate-100 leading-none">
+            {score?.runs ?? 0}<span className="text-slate-500 text-xs">/{score?.wickets ?? 0}</span>
+          </div>
+          <div className="text-[10px] text-slate-400">{score?.overs_str ?? "0.0"} ov</div>
         </div>
-        <div className="text-[10px] text-slate-400">{score?.overs_str ?? "0.0"} ov</div>
-      </div>
+      )}
     </div>
   );
 }
 
 function PhaseBadge({ phase }) {
   const styles = {
-    pre_toss:  { cls: "!bg-cyan-500/15 !border-cyan-400/50 !text-cyan-300",   label: "Pre-toss" },
+    pre_match: { cls: "!bg-cyan-500/15 !border-cyan-400/50 !text-cyan-300",     label: "Betting open" },
     toss:      { cls: "!bg-purple-500/15 !border-purple-400/50 !text-purple-300", label: "Toss" },
-    innings1:  { cls: "!bg-red-500/15 !border-red-400/50 !text-red-300",       label: "Innings 1" },
+    lineup:    { cls: "!bg-blue-500/15 !border-blue-400/50 !text-blue-300",     label: "Line-up" },
+    innings1:  { cls: "!bg-red-500/15 !border-red-400/50 !text-red-300",         label: "1st innings" },
     break:     { cls: "!bg-yellow-500/15 !border-yellow-400/50 !text-yellow-300", label: "Break" },
-    innings2:  { cls: "!bg-red-500/15 !border-red-400/50 !text-red-300",       label: "Innings 2" },
-    completed: { cls: "!bg-slate-500/15 !border-slate-400/40 !text-slate-300",  label: "Finished" },
+    innings2:  { cls: "!bg-red-500/15 !border-red-400/50 !text-red-300",         label: "2nd innings" },
+    completed: { cls: "!bg-slate-500/15 !border-slate-400/40 !text-slate-300",    label: "Finished" },
   };
-  const s = styles[phase] || styles.pre_toss;
+  const s = styles[phase] || styles.pre_match;
   const isLive = phase === "innings1" || phase === "innings2";
   return (
     <span className={`chip text-[10px] uppercase ${s.cls}`}>
@@ -257,26 +315,38 @@ function Scoreboard({ match }) {
   return (
     <div className="card-surface p-5">
       <div className="text-[10px] uppercase tracking-widest text-slate-400 flex items-center gap-2">
-        {match.format} · Match #{match.match_no} · {match.league}
+        {match.format} · {match.league}
       </div>
       <div className="mt-4 space-y-3">
-        <TeamRow team={t1} score={s1} batting={match.batting === t1.short} />
-        <TeamRow team={t2} score={s2} batting={match.batting === t2.short} />
+        <TeamRow team={t1} score={s1} batting={match.batting === t1.short} phase={match.phase} />
+        <TeamRow team={t2} score={s2} batting={match.batting === t2.short} phase={match.phase} />
       </div>
       <MatchStatusLine match={match} />
+      {["pre_match", "toss", "lineup"].includes(match.phase) && (
+        <TossStage match={match} />
+      )}
     </div>
   );
 }
 
 function MatchStatusLine({ match }) {
   const line = useMemo(() => {
-    if (match.phase === "pre_toss") return "Toss coming up…";
-    if (match.phase === "toss") return `${match.toss_winner} won the toss & chose to ${match.toss_choice}`;
+    if (match.phase === "pre_match") {
+      const t = match.toss_at ? new Date(match.toss_at) : null;
+      const timeStr = t ? t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
+      return `Toss scheduled at ${timeStr} · Bets are open`;
+    }
+    if (match.phase === "toss")   return `${match.toss_winner} won the toss & chose to ${match.toss_choice}`;
+    if (match.phase === "lineup") {
+      const t = match.play_at ? new Date(match.play_at) : null;
+      const timeStr = t ? t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
+      return `Teams line-up · Play starts at ${timeStr}`;
+    }
     if (match.phase === "innings1") return `${match.batting} batting first`;
     if (match.phase === "break") return `Innings break — target ${match.target}`;
     if (match.phase === "innings2") {
       const sc = match.scores[match.batting] || {};
-      const bl = 5 * 6 - (sc.balls || 0);
+      const bl = 20 * 6 - (sc.balls || 0);
       const need = Math.max(0, (match.target || 0) - (sc.runs || 0));
       const rrr = bl > 0 ? ((need / bl) * 6).toFixed(2) : "—";
       return `${match.batting} need ${need} in ${bl} balls · RRR ${rrr}`;
@@ -286,6 +356,48 @@ function MatchStatusLine({ match }) {
   }, [match]);
   return (
     <div className="mt-4 pt-4 border-t border-white/5 text-[13px] font-mono text-yellow-300">{line}</div>
+  );
+}
+
+/** Umpire + coin flip animation shown during pre_match → toss → lineup phases. */
+function TossStage({ match }) {
+  const flipping = match.phase === "pre_match" || match.phase === "toss";
+  const done = match.phase === "lineup" || (match.phase === "toss" && match.toss_winner);
+  return (
+    <div className="mt-5 rounded-xl border border-white/5 bg-gradient-to-br from-emerald-950/40 to-slate-900/30 p-4">
+      <div className="flex items-center gap-4">
+        {/* Umpire silhouette */}
+        <div className="relative w-14 h-16 flex-shrink-0">
+          <div className="absolute inset-x-3 top-0 w-8 h-8 rounded-full bg-slate-200/90 border border-slate-400" />
+          <div className="absolute left-1 top-6 w-12 h-8 rounded-t-lg bg-white shadow-inner border border-slate-300" />
+          <div className="absolute left-3 top-14 w-2 h-2 rounded-full bg-slate-800" />
+          <div className="absolute left-9 top-14 w-2 h-2 rounded-full bg-slate-800" />
+        </div>
+        {/* Coin */}
+        <div className="relative w-14 h-14">
+          <motion.div
+            initial={{ rotateY: 0 }}
+            animate={flipping ? { rotateY: 1440 } : { rotateY: done ? 720 : 0 }}
+            transition={{ duration: flipping ? 3 : 0.6, repeat: flipping ? Infinity : 0, ease: "linear" }}
+            className="w-14 h-14 rounded-full grid place-items-center font-mono text-lg font-black shadow-lg"
+            style={{
+              background: "linear-gradient(135deg,#fde047,#f59e0b)",
+              color: "#111",
+              boxShadow: "0 6px 22px rgba(245,158,11,0.35)",
+            }}
+          >
+            ₹
+          </motion.div>
+        </div>
+        <div className="flex-1 text-xs text-slate-300">
+          {match.phase === "pre_match" && "Umpire ready · Coin toss coming up"}
+          {match.phase === "toss" && (match.toss_winner
+            ? <>Umpire calls: <span className="font-bold text-yellow-300">{match.toss_winner}</span> chose to <span className="font-bold">{match.toss_choice}</span></>
+            : "Coin in the air…")}
+          {match.phase === "lineup" && <>{match.toss_winner} won the toss · Teams walking out</>}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -336,7 +448,7 @@ function OutcomeChip({ out }) {
 
 /* ─────────────── Bet Sidebar ─────────────── */
 function BetSidebar({ match, myBets, refreshMyBets, refreshBalance }) {
-  const [amount, setAmount] = useState(50);
+  const [amount, setAmount] = useState(100);
   const [placing, setPlacing] = useState(false);
 
   const place = async (market, selection) => {
@@ -364,31 +476,30 @@ function BetSidebar({ match, myBets, refreshMyBets, refreshBalance }) {
   const mw = match.odds?.match_winner || {};
   const to = match.odds?.toss_winner  || {};
   const tr = match.odds?.total_runs   || { line: 0, over: 2, under: 2 };
-  const canBetToss   = match.phase === "pre_toss";
+  const canBetToss   = match.phase === "pre_match";
   const canBetMW     = !["completed"].includes(match.phase);
   const canBetTotal  = !["completed"].includes(match.phase);
 
   return (
     <aside className="space-y-4">
-      {/* Stake picker */}
+      {/* Stake picker — fixed chips 100 / 500 / 1000 / 5000 / 10000 */}
       <div className="card-surface p-4">
-        <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Stake</div>
-        <div className="flex items-center gap-2">
-          <input
-            type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
-            min={10} step={10}
-            className="bg-[#06090F] border border-white/10 rounded-lg px-3 py-2 font-mono w-24 outline-none focus:border-cyan-500"
-            data-testid="virtual-stake-input"
-          />
-          <div className="flex gap-1.5 flex-wrap">
-            {CHIPS.map((c) => (
-              <button key={c} onClick={() => setAmount(c)}
-                      data-testid={`chip-${c}`}
-                      className={`px-2.5 py-1 rounded-full text-[11px] border transition ${
-                        Number(amount) === c ? "border-cyan-400/60 text-cyan-200 bg-cyan-500/10" : "border-white/10 text-slate-300 hover:border-white/20"
-                      }`}>₹{c}</button>
-            ))}
-          </div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[10px] uppercase tracking-widest text-slate-400">Stake</div>
+          <div className="font-mono text-cyan-300 font-bold">₹{Number(amount).toLocaleString("en-IN")}</div>
+        </div>
+        <div className="grid grid-cols-5 gap-1.5">
+          {CHIPS.map((c) => (
+            <button
+              key={c} onClick={() => setAmount(c)}
+              data-testid={`chip-${c}`}
+              className={`py-2 rounded-lg text-[11px] font-bold border transition ${
+                Number(amount) === c
+                  ? "border-yellow-400/70 text-yellow-200 bg-yellow-500/15"
+                  : "border-white/10 text-slate-300 hover:border-white/25"
+              }`}
+            >₹{c >= 1000 ? `${c / 1000}k` : c}</button>
+          ))}
         </div>
       </div>
 

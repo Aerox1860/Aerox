@@ -1,0 +1,40 @@
+{
+  "summary": "Virtual Cricket T20 rework validated. Backend 13 tests pass (1 CricAPI skip). Rewrote /app/backend/tests/test_virtual_cricket.py for new phase enum (pre_match/toss/lineup/innings1/break/innings2/completed), format=T20, tour_type rotation, tour= query filter, phase-gated toss market, MW bet+cashout, and commentary filter (current+previous over). Frontend UI could NOT be exercised via Playwright — Emergent Sherpa bot-detection served 'Preview Unavailable' to the automated browser (console: '[Sherpa] Bot detected'). Verified frontend structure via code review of /app/frontend/src/pages/VirtualCricket.jsx: all required data-testids present (virtual-page, tour-international/domestic with counts, virtual-tile-*, tile-toss-in, tile-play-in, chip-100/500/1000/5000/10000, virtual-room), no 'Match #N' rendered (league shown instead), TossStage component with umpire silhouette + spinning coin present, commentary is fed from backend which is filtered server-side to current+previous over.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/inplay/matches", "issue": "CricAPI upstream 502 (rate-limited). Test skipped conditionally — same behaviour as previous iteration."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_virtual_cricket.py",
+    "/app/test_reports/pytest/virtual_cricket.xml"
+  ],
+  "action_items": [
+    "None from backend. Main agent should self-verify frontend flow manually (Playwright blocked by preview bot-detection). All required data-testids are already wired in the code."
+  ],
+  "critical_code_review_comments": [
+    "virtual.py:_recent_over_commentary correctly keeps {current_over, current_over-1} and preserves non-ball notes starting with '-'. Verified live: match at ~4.4 overs shows only overs 3 and 4 in the commentary array.",
+    "virtual.py:place_bet toss_winner path returns HTTPException(400,'Toss market closed') if phase != 'pre_match' — matches spec exactly. Verified via test.",
+    "virtual.py:cashout only supports match_winner and blocks phase=='completed' — correct per spec.",
+    "VirtualCricket.jsx uses match.tour_type to segment tabs. If backend ever omits tour_type it defaults to 'international' — sensible fallback.",
+    "TossStage in VirtualCricket.jsx runs infinite spin during pre_match/toss, single 720° settle on lineup — matches product spec.",
+    "MatchTile shows league (not 'Match #N') — confirmed by inspecting JSX. match_no still lives in backend payload (via _public_match uses match_no in bet creation) but never rendered on the tile.",
+    "CHIPS=[100,500,1000,5000,10000] as spec'd; default useState(100) makes chip-100 active by default with yellow highlight class."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_virtual_cricket.py"
+  ],
+  "success_rate": {"backend": "100% (13/13 pass, 1 CricAPI-dependent skip)", "frontend": "N/A — preview bot-detection blocked Playwright; code review shows all required elements are wired"},
+  "test_credentials": "Admin: gowin365x@gmail.com / Admin@AeroX2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None. Ensured admin balance >= 500 via /api/admin/users/adjust in fixture (no-op this run).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend tests at /app/backend/tests/test_virtual_cricket.py. Run WITHOUT xdist: 'pytest backend/tests/test_virtual_cricket.py -o addopts= -v'. Some tests (MW cashout, commentary filter, toss-closed rejection) require an innings-phase match; if all 3 matches are still in pre_match, WAIT ~5 min then rerun those specific tests (the tests skip gracefully otherwise). Frontend Playwright is blocked by Sherpa bot-detection on the preview URL — attempts hit 'Preview Unavailable' page; a human/main-agent should verify UI in a real browser.",
+  "rca of the issue": "N/A — no functional issues found. Frontend automated verification was blocked by platform anti-bot (Sherpa) intercepting headless traffic and returning a 'Preview Unavailable' page even though the frontend service is RUNNING and root URL returns 200 to curl."
+}
