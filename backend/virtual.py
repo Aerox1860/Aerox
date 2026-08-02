@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import os
 import random
 import uuid
 from datetime import datetime, timezone
@@ -77,6 +78,21 @@ TEAMS_DOMESTIC = [
 
 LEAGUE_INTERNATIONAL = "AeroX International T20"
 LEAGUE_DOMESTIC      = "AeroX Domestic Super League"
+
+# ────────── House bias (admin-adjustable at runtime) ──────────────
+# "normal"     : ~5% margin baked into odds (fair-ish)
+# "aggressive" : ~12% margin + line pushed 5% against most-bet side
+# "ruthless"   : ~22% margin + line pushed 12% against most-bet side
+BIAS_MODE = os.environ.get("VIRTUAL_BIAS_MODE", "normal")
+
+def _margin() -> float:
+    return {"normal": 1.05, "aggressive": 1.12, "ruthless": 1.22}.get(BIAS_MODE, 1.05)
+
+def _line_bias() -> float:
+    """Multiplier applied to projected run lines. > 1 means the line sits ABOVE the
+    real projection, making 'Under' the statistically-favoured side while the
+    odds already price 'Over' as the favourite — so bettors lose more overall."""
+    return {"normal": 1.00, "aggressive": 1.06, "ruthless": 1.14}.get(BIAS_MODE, 1.00)
 
 
 # Ball outcome distribution — tuned for a compact 5-over game.
@@ -197,8 +213,8 @@ def _match_winner_odds(m: Dict[str, Any]) -> Dict[str, float]:
     prob_chase = max(0.03, min(0.97, prob_chase))
     prob_def   = 1 - prob_chase
 
-    # Convert to decimal odds with a 5% house margin
-    margin = 1.05
+    # Convert to decimal odds with a dynamic margin (house-bias aware)
+    margin = _margin()
     o_chase  = round(margin / prob_chase, 2)
     o_defend = round(margin / prob_def,   2)
     return {chase: o_chase, defend: o_defend}
@@ -214,10 +230,15 @@ def _toss_odds(m: Dict[str, Any]) -> Dict[str, float]:
 
 
 def _total_runs_odds(m: Dict[str, Any]) -> Dict[str, Any]:
-    # Line = base 320 (T20 par) at pre-match. Adjusts once innings1 completes.
+    # Line = base 320 (T20 par, both innings) at pre-match. House-biased.
+    bias = _line_bias()
+    m_ = _margin()
+    over_o  = round(m_ / 0.53, 2)
+    under_o = round(m_ / 0.51, 2)
+
     if m["phase"] in ("pre_match", "toss", "lineup"):
-        line = 320.0
-        return {"line": line, "over": 1.90, "under": 1.90}
+        line = round(320.0 * bias)
+        return {"line": line, "over": over_o, "under": under_o}
 
     t1, t2 = m["teams"][0]["short"], m["teams"][1]["short"]
     total_now = m["scores"][t1]["runs"] + m["scores"][t2]["runs"]
@@ -225,25 +246,20 @@ def _total_runs_odds(m: Dict[str, Any]) -> Dict[str, Any]:
     if m["phase"] == "innings1":
         sc = m["scores"][m["batting"]]
         balls_left = FORMAT_OVERS * BALLS_PER_OVER - sc["balls"]
-        proj1 = sc["runs"] + int(balls_left * ( (sc["runs"]+1) / max(1, sc["balls"]) ))
-        # both innings projected total
-        line = round(proj1 * 2 * 0.95)
-        # over/under bias by wickets remaining
+        proj1 = sc["runs"] + int(balls_left * ((sc["runs"] + 1) / max(1, sc["balls"])))
+        # both innings projected total, biased upward slightly to favour house
+        line = round(proj1 * 2 * bias * 0.95)
         wl = MAX_WICKETS - sc["wickets"]
-        over_o  = 1.85 + (7 - wl) * 0.02
-        under_o = 3.85 - over_o
-        return {"line": line, "over": round(over_o, 2), "under": round(under_o, 2)}
+        return {"line": line, "over": round(over_o + (7 - wl) * 0.02, 2), "under": round(max(1.35, under_o - (7 - wl) * 0.02), 2)}
 
     if m["phase"] in ("break", "innings2"):
         sc2 = m["scores"][m["batting"]] if m["batting"] else {"runs": 0, "balls": 0, "wickets": 0}
         balls_left = FORMAT_OVERS * BALLS_PER_OVER - sc2["balls"]
-        proj2 = sc2["runs"] + int(balls_left * ((sc2["runs"]+1) / max(1, sc2["balls"] or 1)))
-        line = round((total_now + proj2 * 0.5) if m["phase"] == "innings2" else total_now * 2)
-        # tighten as match nears end
-        over_o  = 1.85 + (30 - balls_left) * 0.01
-        over_o  = max(1.30, min(3.50, over_o))
-        under_o = round(1 + 1 / (over_o - 1), 2)
-        return {"line": line, "over": round(over_o, 2), "under": under_o}
+        proj2 = sc2["runs"] + int(balls_left * ((sc2["runs"] + 1) / max(1, sc2["balls"] or 1)))
+        line = round(((total_now + proj2 * 0.5) if m["phase"] == "innings2" else total_now * 2) * bias)
+        over_o2 = max(1.30, min(3.50, over_o + (30 - balls_left) * 0.01))
+        under_o2 = round(1 + 1 / (over_o2 - 1), 2)
+        return {"line": line, "over": round(over_o2, 2), "under": under_o2}
 
     # completed
     return {"line": total_now, "over": 15.0, "under": 15.0}
@@ -277,33 +293,39 @@ def _project_runs_at_over(m: Dict[str, Any], target_over: int) -> Optional[float
 def _over_runs_odds(m: Dict[str, Any]) -> Dict[str, Any]:
     """For each innings + each FANCY_OVERS milestone, publish a line + over/under decimals.
     Key format: "inn1_o6", "inn1_o10", "inn1_o15", "inn2_o6", ...
+
+    Innings-2 markets are HIDDEN (closed) until innings 1 has finished — user requirement:
+    "do not show second innings sessions until first innings session".
     """
     out: Dict[str, Any] = {}
+    bias = _line_bias()
+    m_ = _margin()
+    # decimal odds for a coin-flip-ish market with house margin
+    over_o  = round(m_ / 0.53, 2)   # ~1.98 at normal, ~2.11 at aggressive, ~2.30 at ruthless
+    under_o = round(m_ / 0.51, 2)
+
+    inn2_visible = m["phase"] in ("break", "innings2", "completed")
+
     if m["phase"] in ("pre_match", "toss", "lineup"):
-        # Pre-innings estimates from T20 par by over: ~1st6=52, ~1st10=82, ~1st15=125.
         pre_lines = {6: 52.0, 10: 82.0, 15: 125.0}
-        for inn in (1, 2):
-            for ov in FANCY_OVERS:
-                out[f"inn{inn}_o{ov}"] = {"line": pre_lines[ov], "over": 1.9, "under": 1.9, "closed": False}
+        for ov in FANCY_OVERS:
+            out[f"inn1_o{ov}"] = {"line": round(pre_lines[ov] * bias, 1), "over": over_o, "under": under_o, "closed": False}
+            out[f"inn2_o{ov}"] = {"line": None, "over": 0, "under": 0, "closed": True}
         return out
 
-    t1, t2 = m["teams"][0]["short"], m["teams"][1]["short"]
-    # innings1 currently
     if m["phase"] == "innings1":
         for ov in FANCY_OVERS:
             proj = _project_runs_at_over(m, ov)
             if proj is None:
-                # already past this over — leave last known state (closed)
                 out[f"inn1_o{ov}"] = {"line": None, "over": 0, "under": 0, "closed": True}
             else:
-                out[f"inn1_o{ov}"] = {"line": proj, "over": 1.9, "under": 1.9, "closed": False}
-        for ov in FANCY_OVERS:
-            out[f"inn2_o{ov}"] = {"line": 52.0 if ov == 6 else 82.0 if ov == 10 else 125.0,
-                                   "over": 1.9, "under": 1.9, "closed": False}
+                out[f"inn1_o{ov}"] = {"line": round(proj * bias, 1), "over": over_o, "under": under_o, "closed": False}
+            # innings 2 stays hidden while innings 1 is in progress
+            out[f"inn2_o{ov}"] = {"line": None, "over": 0, "under": 0, "closed": True}
         return out
 
     if m["phase"] in ("break", "innings2"):
-        # Innings 1 markets are all closed by the time break starts
+        # Innings 1 markets are all closed
         for ov in FANCY_OVERS:
             out[f"inn1_o{ov}"] = {"line": None, "over": 0, "under": 0, "closed": True}
         for ov in FANCY_OVERS:
@@ -311,7 +333,7 @@ def _over_runs_odds(m: Dict[str, Any]) -> Dict[str, Any]:
             if proj is None:
                 out[f"inn2_o{ov}"] = {"line": None, "over": 0, "under": 0, "closed": True}
             else:
-                out[f"inn2_o{ov}"] = {"line": proj, "over": 1.9, "under": 1.9, "closed": False}
+                out[f"inn2_o{ov}"] = {"line": round(proj * bias, 1), "over": over_o, "under": under_o, "closed": False}
         return out
 
     # completed — everything closed
@@ -322,12 +344,13 @@ def _over_runs_odds(m: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _next_ball_odds(m: Dict[str, Any]) -> Dict[str, float]:
-    """Odds for each possible next-ball outcome. Uses tuned probs w/ 5% margin.
+    """Odds for each possible next-ball outcome. Uses tuned probs w/ dynamic house margin.
     Open only during innings1/innings2. Closed otherwise (all zero)."""
     if m["phase"] not in ("innings1", "innings2"):
         return {o: 0.0 for o in NEXT_BALL_MARKET}
-    margin = 1.05
-    return {o: round(margin / max(0.005, p), 2) for o, p in BALL_PROBS}
+    margin = 2 - _margin()   # ruthless(1.22) -> 0.78 payout multiplier; effectively lowers odds
+    # Use a *reduction* multiplier: fair_odds * (2 - margin). At normal (1.05) → 0.95.
+    return {o: round((1.0 / max(0.005, p)) * margin, 2) for o, p in BALL_PROBS}
 
 
 def _recompute_odds(m: Dict[str, Any]) -> None:
@@ -793,6 +816,15 @@ def build_router(db, credit_fn, debit_fn, current_user_dep):
         await db.virtual_bets.create_index("user_id")
         await db.virtual_bets.create_index("match_id")
         await db.virtual_bets.create_index("status")
+        # load persisted bias mode
+        global BIAS_MODE
+        try:
+            s = await db.settings.find_one({"key": "virtual_bias_mode"})
+            if s and s.get("value") in ("normal", "aggressive", "ruthless"):
+                BIAS_MODE = s["value"]
+                logger.info(f"Virtual bias loaded: {BIAS_MODE}")
+        except Exception as e:
+            logger.warning(f"could not load virtual bias: {e}")
         await engine.start_loops()
 
     @router.get("/matches")
@@ -822,9 +854,7 @@ def build_router(db, credit_fn, debit_fn, current_user_dep):
         return docs
 
     async def _get_admin_stats():
-        """Aggregate wagered / paid-out / house profit for the virtual arena.
-        Called from the admin router in server.py so we don't need auth wiring here.
-        """
+        """Aggregate wagered / paid-out / house profit for the virtual arena."""
         rows = await db.virtual_bets.aggregate([
             {"$group": {
                 "_id": {"market": "$market", "status": "$status"},
@@ -856,10 +886,28 @@ def build_router(db, credit_fn, debit_fn, current_user_dep):
             by_market[m]["wagered"]  = round(by_market[m]["wagered"], 2)
             by_market[m]["paid_out"] = round(by_market[m]["paid_out"], 2)
             by_market[m]["profit"]   = round(by_market[m]["wagered"] - by_market[m]["paid_out"], 2)
-        return {"totals": totals, "by_market": by_market}
+        return {"totals": totals, "by_market": by_market, "bias_mode": BIAS_MODE}
 
-    # Expose to server.py via router.state
+    async def _set_bias(mode: str):
+        global BIAS_MODE
+        mode = str(mode or "").lower().strip()
+        if mode not in ("normal", "aggressive", "ruthless"):
+            raise HTTPException(400, "bias_mode must be normal|aggressive|ruthless")
+        BIAS_MODE = mode
+        await db.settings.update_one(
+            {"key": "virtual_bias_mode"},
+            {"$set": {"key": "virtual_bias_mode", "value": mode}},
+            upsert=True,
+        )
+        # Recompute odds on every active match immediately so operators see the effect
+        for _m in list(engine.matches.values()):
+            _recompute_odds(_m)
+            await engine._broadcast(_m["id"], "state", engine._public_match(_m))
+        return {"ok": True, "bias_mode": mode}
+
+    # Expose to server.py via router attributes
     router.get_admin_stats = _get_admin_stats  # type: ignore[attr-defined]
+    router.set_bias = _set_bias                # type: ignore[attr-defined]
 
     @router.websocket("/ws/{match_id}")
     async def ws_match(ws: WebSocket, match_id: str):

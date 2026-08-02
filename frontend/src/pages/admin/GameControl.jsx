@@ -172,6 +172,7 @@ function MaintCard({ id, label, icon: Icon, enabled, live, onToggle }) {
 function VirtualPnLCard({ stats }) {
   const totals = stats?.totals || {};
   const byMarket = stats?.by_market || {};
+  const bias = stats?.bias_mode || "normal";
   const wagered = Number(totals.total_wagered || 0);
   const paidOut = Number(totals.total_paid_out || 0);
   const profit  = Number(totals.house_profit || 0);
@@ -180,11 +181,37 @@ function VirtualPnLCard({ stats }) {
 
   const rows = Object.entries(byMarket).sort((a, b) => (b[1].profit || 0) - (a[1].profit || 0));
 
+  const setBias = async (mode) => {
+    try {
+      await api.post("/virtual/admin/bias", { bias_mode: mode });
+      toast.success(`Virtual bias → ${mode}`);
+    } catch (e) { toast.error(formatApiError(e)); }
+  };
+
   return (
     <div className="card-surface p-6 space-y-4" data-testid="virtual-pnl-panel">
-      <div className="flex items-center gap-2">
-        <Trophy className="w-4 h-4 text-yellow-300" />
-        <div className="font-heading font-bold">Virtual Cricket · House P&L</div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Trophy className="w-4 h-4 text-yellow-300" />
+          <div className="font-heading font-bold">Virtual Cricket · House P&L</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-widest text-slate-400">Bias</span>
+          {["normal", "aggressive", "ruthless"].map((m) => (
+            <button
+              key={m}
+              onClick={() => setBias(m)}
+              data-testid={`vbias-${m}`}
+              className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition ${
+                bias === m
+                  ? (m === "ruthless" ? "border-red-400/60 text-red-200 bg-red-500/15"
+                   : m === "aggressive" ? "border-amber-400/60 text-amber-200 bg-amber-500/15"
+                   : "border-emerald-400/60 text-emerald-200 bg-emerald-500/15")
+                  : "border-white/10 text-slate-300 hover:border-white/20"
+              }`}
+            >{m}</button>
+          ))}
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <PnLTile label="Total Wagered" value={inr(wagered)}

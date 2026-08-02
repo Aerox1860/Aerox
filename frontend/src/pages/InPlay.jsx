@@ -66,7 +66,7 @@ export default function InPlay() {
         <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full bg-yellow-500/20 blur-3xl pointer-events-none" />
         <div className="absolute top-3 right-3">
           <span className="chip !bg-yellow-500/15 !border-yellow-400/50 !text-yellow-300 text-[10px] uppercase">
-            <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 animate-pulse" /> Live betting
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 animate-pulse" /> Live cricket
           </span>
         </div>
         <div className="flex items-center gap-4 relative">

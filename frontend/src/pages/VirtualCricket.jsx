@@ -451,6 +451,28 @@ function BetSidebar({ match, myBets, refreshMyBets, refreshBalance }) {
   const [amount, setAmount] = useState(100);
   const [placing, setPlacing] = useState(false);
 
+  // Track previous match_winner odds so we can render ▲ / ▼ indicators when they change ball-by-ball.
+  const prevMwRef = useRef({});
+  const [mwMove, setMwMove] = useState({});
+  useEffect(() => {
+    const now = match.odds?.match_winner || {};
+    const prev = prevMwRef.current;
+    const next = {};
+    for (const k of Object.keys(now)) {
+      const a = Number(now[k] || 0);
+      const b = Number(prev[k] || 0);
+      if (b > 0 && a !== b) next[k] = a > b ? "up" : "down";
+    }
+    if (Object.keys(next).length) {
+      setMwMove(next);
+      // Clear indicator after 3s so it doesn't stick permanently
+      const t = setTimeout(() => setMwMove({}), 3000);
+      prevMwRef.current = now;
+      return () => clearTimeout(t);
+    }
+    prevMwRef.current = now;
+  }, [match.odds?.match_winner]);
+
   const place = async (market, selection) => {
     setPlacing(true);
     try {
@@ -505,18 +527,20 @@ function BetSidebar({ match, myBets, refreshMyBets, refreshBalance }) {
 
       {/* Match Winner */}
       <MarketCard title="Match Winner" testid="mkt-mw" note="Cashout available before match ends">
-        <SelBtn label={t1.short} odds={mw[t1.short]} disabled={!canBetMW || placing} onClick={() => place("match_winner", t1.short)} testid={`bet-mw-${t1.short}`} />
-        <SelBtn label={t2.short} odds={mw[t2.short]} disabled={!canBetMW || placing} onClick={() => place("match_winner", t2.short)} testid={`bet-mw-${t2.short}`} />
+        <SelBtn label={t1.short} odds={mw[t1.short]} move={mwMove[t1.short]} disabled={!canBetMW || placing} onClick={() => place("match_winner", t1.short)} testid={`bet-mw-${t1.short}`} />
+        <SelBtn label={t2.short} odds={mw[t2.short]} move={mwMove[t2.short]} disabled={!canBetMW || placing} onClick={() => place("match_winner", t2.short)} testid={`bet-mw-${t2.short}`} />
       </MarketCard>
 
-      {/* Toss */}
-      <MarketCard title="Toss Winner" testid="mkt-toss" note={canBetToss ? "Locks at toss" : "Toss done"}>
-        <SelBtn label={t1.short} odds={to[t1.short]} disabled={!canBetToss || placing} onClick={() => place("toss_winner", t1.short)} testid={`bet-toss-${t1.short}`} />
-        <SelBtn label={t2.short} odds={to[t2.short]} disabled={!canBetToss || placing} onClick={() => place("toss_winner", t2.short)} testid={`bet-toss-${t2.short}`} />
-      </MarketCard>
+      {/* Toss — only show while pre_match (removed after toss done) */}
+      {canBetToss && (
+        <MarketCard title="Toss Winner" testid="mkt-toss" note="Locks at toss">
+          <SelBtn label={t1.short} odds={to[t1.short]} disabled={placing} onClick={() => place("toss_winner", t1.short)} testid={`bet-toss-${t1.short}`} />
+          <SelBtn label={t2.short} odds={to[t2.short]} disabled={placing} onClick={() => place("toss_winner", t2.short)} testid={`bet-toss-${t2.short}`} />
+        </MarketCard>
+      )}
 
-      {/* Total Runs */}
-      <MarketCard title={`Match Total Runs (line ${tr.line})`} testid="mkt-tr" note="No cashout · Settles at end">
+      {/* Total Runs (20-over T20 combined total) */}
+      <MarketCard title={`20-Over Total Runs (line ${tr.line})`} testid="mkt-tr" note="No cashout · Settles at end">
         <SelBtn label={`Over ${tr.line}`}  odds={tr.over}  disabled={!canBetTotal || placing} onClick={() => place("total_runs", "over")}  testid="bet-tr-over" />
         <SelBtn label={`Under ${tr.line}`} odds={tr.under} disabled={!canBetTotal || placing} onClick={() => place("total_runs", "under")} testid="bet-tr-under" />
       </MarketCard>
@@ -557,20 +581,24 @@ function MarketCard({ title, note, children, testid }) {
   );
 }
 
-function SelBtn({ label, odds, disabled, onClick, testid }) {
+function SelBtn({ label, odds, disabled, onClick, testid, move }) {
   const hasOdds = typeof odds === "number" && odds > 1.0;
   return (
     <button
       onClick={onClick}
       disabled={disabled || !hasOdds}
       data-testid={testid}
-      className={`rounded-lg px-3 py-3 border text-left transition ${
+      className={`rounded-lg px-3 py-3 border text-left transition relative overflow-hidden ${
         disabled || !hasOdds
           ? "border-white/5 bg-white/5 text-slate-500 cursor-not-allowed"
           : "border-cyan-400/40 bg-cyan-500/10 text-slate-100 hover:border-cyan-400/70 hover:bg-cyan-500/15"
       }`}
     >
-      <div className="text-xs font-bold">{label}</div>
+      <div className="text-xs font-bold flex items-center justify-between">
+        <span>{label}</span>
+        {move === "up"   && <span data-testid={`odds-up-${testid}`}   className="text-[10px] text-green-400 font-mono">▲</span>}
+        {move === "down" && <span data-testid={`odds-down-${testid}`} className="text-[10px] text-red-400 font-mono">▼</span>}
+      </div>
       <div className="mt-1 font-mono text-lg font-black text-cyan-300">
         {hasOdds ? `${odds}x` : "—"}
       </div>

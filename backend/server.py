@@ -1515,6 +1515,19 @@ async def admin_virtual_stats():
         return {"totals": {}, "by_market": {}}
     return await fn()
 
+
+class VirtualBiasIn(BaseModel):
+    bias_mode: str
+
+
+@_virtual_router.post("/admin/bias", dependencies=[Depends(admin_only)])
+async def admin_virtual_bias(body: VirtualBiasIn):
+    fn = getattr(_virtual_router, "set_bias", None)
+    if fn is None:
+        raise HTTPException(500, "bias setter unavailable")
+    return await fn(body.bias_mode)
+
+
 app.include_router(_virtual_router)
 
 app.add_middleware(
