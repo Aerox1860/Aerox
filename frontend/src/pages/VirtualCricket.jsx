@@ -539,8 +539,8 @@ function BetSidebar({ match, myBets, refreshMyBets, refreshBalance }) {
         </MarketCard>
       )}
 
-      {/* Total Runs (20-over T20 combined total) */}
-      <MarketCard title={`20-Over Total Runs (line ${tr.line})`} testid="mkt-tr" note="No cashout · Settles at end">
+      {/* Total Runs (both innings combined — 40 overs total) */}
+      <MarketCard title={`Match Total Runs · Both Innings (line ${tr.line})`} testid="mkt-tr" note="No cashout · Settles at match end">
         <SelBtn label={`Over ${tr.line}`}  odds={tr.over}  disabled={!canBetTotal || placing} onClick={() => place("total_runs", "over")}  testid="bet-tr-over" />
         <SelBtn label={`Under ${tr.line}`} odds={tr.under} disabled={!canBetTotal || placing} onClick={() => place("total_runs", "under")} testid="bet-tr-under" />
       </MarketCard>
@@ -797,7 +797,7 @@ function BetRow({ bet, match, onCashout }) {
   const marketPretty = {
     match_winner: "Match Winner",
     toss_winner:  "Toss Winner",
-    total_runs:   "20-Over Total Runs",
+    total_runs:   "Match Total (Both Innings)",
     over_runs:    `Over ${bet.over_target}-run (Inn ${bet.innings_target})`,
     next_ball:    "Next Ball",
   }[bet.market] || bet.market;
