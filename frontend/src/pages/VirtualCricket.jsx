@@ -322,9 +322,48 @@ function Scoreboard({ match }) {
         <TeamRow team={t2} score={s2} batting={match.batting === t2.short} phase={match.phase} />
       </div>
       <MatchStatusLine match={match} />
+      {match.batters && ["innings1", "innings2"].includes(match.phase) && (
+        <BattersPanel batters={match.batters} />
+      )}
       {["pre_match", "toss", "lineup"].includes(match.phase) && (
         <TossStage match={match} />
       )}
+    </div>
+  );
+}
+
+/** Compact striker + non-striker card shown during live innings. */
+function BattersPanel({ batters }) {
+  const striker = batters?.striker;
+  const nonStriker = batters?.non_striker;
+  return (
+    <div className="mt-4 pt-4 border-t border-white/5">
+      <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Batters at the crease</div>
+      <div className="grid grid-cols-2 gap-2" data-testid="batters-panel">
+        <BatterCard b={striker} onStrike testid="batter-striker" />
+        <BatterCard b={nonStriker} testid="batter-non-striker" />
+      </div>
+    </div>
+  );
+}
+
+function BatterCard({ b, onStrike = false, testid }) {
+  if (!b) return <div className="rounded-lg border border-white/5 p-3 text-xs text-slate-500 text-center">—</div>;
+  return (
+    <div
+      className={`rounded-lg p-3 border ${onStrike ? "border-yellow-400/60 bg-yellow-500/10" : "border-white/10 bg-white/5"}`}
+      data-testid={testid}
+    >
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-bold truncate flex items-center gap-1.5">
+          {b.name}
+          {onStrike && <span className="text-[9px] px-1 py-0.5 rounded bg-yellow-500/15 border border-yellow-400/40 text-yellow-300 uppercase tracking-widest">On Strike</span>}
+        </div>
+      </div>
+      <div className="mt-1 flex items-center justify-between font-mono">
+        <span className="text-lg font-black text-slate-100">{b.runs}<span className="text-slate-500 text-xs"> ({b.balls})</span></span>
+        <span className="text-[10px] text-slate-400">4s {b.fours} · 6s {b.sixes}</span>
+      </div>
     </div>
   );
 }

@@ -79,6 +79,25 @@ TEAMS_DOMESTIC = [
 LEAGUE_INTERNATIONAL = "AeroX International T20"
 LEAGUE_DOMESTIC      = "AeroX Domestic Super League"
 
+# Player pool — realistic, stadium-friendly pseudonyms (no real cricketer names to avoid rights issues)
+_PLAYER_FIRSTS = [
+    "R.", "V.", "S.", "M.", "K.", "A.", "J.", "H.", "P.", "N.", "D.", "T.",
+    "B.", "L.", "Y.", "G.", "I.", "O.",
+]
+_PLAYER_LASTS = [
+    "Sharma", "Patel", "Khan", "Verma", "Iyer", "Kumar", "Singh", "Yadav",
+    "Rathi", "Chandra", "Rao", "Menon", "Naidu", "Malik", "Basu", "Sethi",
+    "Bose", "Nayak", "Dutta", "Joshi", "Chowdhury", "Prasad",
+    "Smith", "Anderson", "Cooper", "Fraser", "Miller", "Wright",
+    "Barlow", "Nelson", "Palmer", "Roberts", "Perez", "Silva", "Diaz",
+]
+
+def _make_players(team_short: str) -> List[Dict[str, Any]]:
+    """Deterministic-per-team 11-man squad (sampled fresh each match to keep it lively)."""
+    firsts = random.sample(_PLAYER_FIRSTS, 11)
+    lasts  = random.sample(_PLAYER_LASTS, 11)
+    return [{"name": f"{firsts[i]} {lasts[i]}", "runs": 0, "balls": 0, "fours": 0, "sixes": 0, "out": False, "team": team_short} for i in range(11)]
+
 # ────────── House bias (admin-adjustable at runtime) ──────────────
 # "normal"     : ~5% margin baked into odds (fair-ish)
 # "aggressive" : ~12% margin + line pushed 5% against most-bet side
@@ -142,6 +161,13 @@ def _fresh_match_shell(match_no: int, tour_type: str = "international") -> Dict[
         "tour_type":   tour_type,       # "international" | "domestic"
         "format":      f"T{FORMAT_OVERS}",
         "teams":       [dict(t) for t in teams],  # [team1, team2]
+        # Per-team 11-man squads (used to attribute runs to striker/non-striker)
+        "squads":      {teams[0]["short"]: _make_players(teams[0]["short"]),
+                        teams[1]["short"]: _make_players(teams[1]["short"])},
+        # Live batting pair (indices into the batting team's squad)
+        "striker_idx":     None,
+        "non_striker_idx": None,
+        "next_batter_idx": None,
         "phase":       "pre_match",   # pre_match | toss | lineup | innings1 | break | innings2 | completed
         "phase_end":   iso(toss_at),
         "toss_at":     iso(toss_at),
@@ -489,6 +515,10 @@ class VirtualEngine:
 
     async def _run_innings(self, m: Dict[str, Any], first: bool):
         bat = m["batting"]
+        # Open batting pair — striker + non-striker + next batter to walk in
+        m["striker_idx"]     = 0
+        m["non_striker_idx"] = 1
+        m["next_batter_idx"] = 2
         for over in range(FORMAT_OVERS):
             for ball in range(BALLS_PER_OVER):
                 sc = m["scores"][bat]
@@ -502,14 +532,34 @@ class VirtualEngine:
                 ball_idx = sc["balls"] % BALLS_PER_OVER
                 sc["overs_str"] = f"{over_idx}.{ball_idx}" if ball_idx else f"{over_idx}.0"
 
+                # Attribute outcome to the striker
+                squad = m["squads"][bat]
+                striker = squad[m["striker_idx"]] if m["striker_idx"] is not None else None
+                if striker is not None:
+                    striker["balls"] += 1
+
                 text = ""
                 if outcome == "W":
                     sc["wickets"] += 1
+                    if striker is not None: striker["out"] = True
                     text = f"OUT! Wicket falls — {sc['wickets']}/10"
+                    # New batter walks in as the striker
+                    if m["next_batter_idx"] is not None and m["next_batter_idx"] < 11:
+                        m["striker_idx"] = m["next_batter_idx"]
+                        m["next_batter_idx"] += 1
+                    else:
+                        m["striker_idx"] = None
                 else:
                     runs = int(outcome)
                     sc["runs"] += runs
+                    if striker is not None:
+                        striker["runs"] += runs
+                        if outcome == "4": striker["fours"] += 1
+                        elif outcome == "6": striker["sixes"] += 1
                     text = f"{outcome} run{'s' if runs != 1 else ''}"
+                    # Rotate strike on odd runs
+                    if runs % 2 == 1 and m["non_striker_idx"] is not None:
+                        m["striker_idx"], m["non_striker_idx"] = m["non_striker_idx"], m["striker_idx"]
 
                 comm = {
                     "over": f"{over_idx if ball_idx else max(0, over_idx-0)}.{ball_idx if ball_idx else 0}",
@@ -531,9 +581,12 @@ class VirtualEngine:
                 _recompute_odds(m)
                 await self._broadcast(m["id"], "ball", {"match": self._public_match(m), "comm": comm})
 
-            # end of over — light pause
+            # end of over — light pause + strike rotation
             if m["scores"][bat]["wickets"] >= MAX_WICKETS: break
             if not first and (m["scores"][bat]["runs"] >= (m["target"] or 0)): break
+            # Rotate strike at the end of every completed over (unless a wicket has just changed the striker)
+            if m["striker_idx"] is not None and m["non_striker_idx"] is not None:
+                m["striker_idx"], m["non_striker_idx"] = m["non_striker_idx"], m["striker_idx"]
 
         # innings finished — any un-settled fancy over markets for this innings settle with the FINAL runs
         # (e.g. team all-out at over 4 → 6/10/15-over markets close with runs achieved).
@@ -571,6 +624,20 @@ class VirtualEngine:
         return out[:24]
 
     def _public_match(self, m: Dict[str, Any]) -> Dict[str, Any]:
+        # Only surface the current batting pair (striker / non-striker) — full squads stay server-side
+        bat = m.get("batting")
+        batters = None
+        if bat and m.get("striker_idx") is not None and m["phase"] in ("innings1", "innings2"):
+            sq = m["squads"].get(bat, [])
+            def _slim(idx):
+                if idx is None or idx >= len(sq): return None
+                p = sq[idx]
+                return {"name": p["name"], "runs": p["runs"], "balls": p["balls"],
+                        "fours": p["fours"], "sixes": p["sixes"], "out": p["out"]}
+            batters = {
+                "striker":     _slim(m["striker_idx"]),
+                "non_striker": _slim(m["non_striker_idx"]),
+            }
         return {
             "id": m["id"],
             "league": m["league"],
@@ -589,6 +656,7 @@ class VirtualEngine:
             "scores": m["scores"],
             "target": m["target"],
             "winner": m["winner"],
+            "batters": batters,
             "commentary": self._recent_over_commentary(m),
             "odds": m["odds"],
         }
