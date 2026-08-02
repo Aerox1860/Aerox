@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import Welcome from "@/pages/Welcome";
 import Lobby from "@/pages/Lobby";
 import Game from "@/pages/Game";
 import Wallet from "@/pages/Wallet";
@@ -61,6 +62,22 @@ function Protected({ children, admin = false }) {
   return children;
 }
 
+// Root gate: unauthenticated visitors land on Welcome (with Login/Sign-up CTAs).
+// Authenticated players get the full PlayerLayout with all nested routes.
+function HomeGate() {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-slate-400 font-mono text-sm" data-testid="loading-indicator">loading...</div>
+      </div>
+    );
+  }
+  if (!user) return <Welcome />;
+  if (user.must_change_password) return <Navigate to="/change-password" replace />;
+  return <PlayerLayout />;
+}
+
 function AppRoutes() {
   const { user, loading } = useAuth();
 
@@ -95,7 +112,7 @@ function AppRoutes() {
         <Route path="/register" element={loading ? null : (user ? <Navigate to="/" /> : <Register />)} />
         <Route path="/change-password" element={user ? <ChangePassword /> : <Navigate to="/login" replace />} />
         <Route path="/admin/*" element={<Navigate to="/login" replace />} />
-        <Route path="/" element={<Protected><PlayerLayout /></Protected>}>
+        <Route path="/" element={<HomeGate />}>
           <Route index element={<Lobby />} />
           <Route path="games" element={<Games />} />
           <Route path="games/roulette" element={<RouletteLobby />} />
@@ -124,7 +141,7 @@ function AppRoutes() {
       <Route path="/register" element={loading ? null : (user ? <Navigate to="/" /> : <Register />)} />
       <Route path="/change-password" element={user ? <ChangePassword /> : <Navigate to="/login" replace />} />
 
-      <Route path="/" element={<Protected><PlayerLayout /></Protected>}>
+      <Route path="/" element={<HomeGate />}>
         <Route index element={<Lobby />} />
         <Route path="games" element={<Games />} />
         <Route path="games/roulette" element={<RouletteLobby />} />
