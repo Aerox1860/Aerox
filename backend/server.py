@@ -1507,6 +1507,14 @@ app.include_router(_build_cricket())
 # ------------- Virtual Cricket engine -------------
 from virtual import build_router as _build_virtual
 _virtual_router, _virtual_start = _build_virtual(db, credit, debit, current_user)
+
+@_virtual_router.get("/admin/stats", dependencies=[Depends(admin_only)])
+async def admin_virtual_stats():
+    fn = getattr(_virtual_router, "get_admin_stats", None)
+    if fn is None:
+        return {"totals": {}, "by_market": {}}
+    return await fn()
+
 app.include_router(_virtual_router)
 
 app.add_middleware(

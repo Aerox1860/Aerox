@@ -98,7 +98,11 @@ AeroX Crash is a real-time aviation "crash" style multiplayer game where players
   - **`total_runs`** — over/under line, settles at match end
   - **`over_runs`** — 6 / 10 / 15-over runs per innings (over/under). Line locked at bet time. Settles the moment the target over completes; if the innings ends earlier (all-out) the market settles on the actual runs at close.
   - **`next_ball`** — bet on outcome of the very next ball (0/1/2/3/4/6/W) at dynamic odds derived from the ball-outcome distribution + 5% margin. Only open during `innings1`/`innings2`, locks on next ball, settles instantly.
+  - **Ball countdown ring**: 6-sec animated ring on each Next-Ball button so players feel the urgency; resets on every new ball
+  - **Live cashout preview**: match_winner rows show the current cash-out value on the button with **green** background when in profit and **red** when in loss — the player sees the payout before clicking
+  - **Auto-close finished markets**: over-run cells hide the moment the target over completes (or the innings ends); no empty "closed" tiles polluting the UI
   - Cashout **only** on `match_winner`. All others settle at market close, verified end-to-end (won/lost/payouts). WebSocket at `/api/virtual/ws/{match_id}` streams live state.
+- **Admin Virtual P&L (Feb 2026)**: `GET /api/virtual/admin/stats` (admin-only) returns total_wagered, total_paid_out, house_profit + per-market breakdown. Displayed on the Game Control page as a 3-tile summary (wagered / paid out / house profit — green or red) plus a per-market table (Bets · Wagered · Paid Out · P&L).
 - Reports: top winners, recent rounds
 
 ## Prioritized Backlog / P0/P1/P2

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Save, Play, Pause, Wrench, Sparkles, Plane, Disc } from "lucide-react";
+import { Save, Play, Pause, Wrench, Sparkles, Plane, Disc, Trophy, TrendingUp, TrendingDown, Coins } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 
 const BIAS_OPTIONS = [
@@ -13,15 +13,18 @@ export default function AdminGameControl() {
   const [dash, setDash] = useState(null);
   const [edge, setEdge] = useState("0.03");
   const [gs, setGs] = useState({ crash: true, roulette: true, bias_mode: "normal" });
+  const [vstats, setVstats] = useState(null);
 
   const loadDash = () => api.get("/admin/dashboard").then(({ data }) => setDash(data));
   const loadGs   = () => api.get("/admin/games/status").then(({ data }) => setGs(data));
+  const loadV    = () => api.get("/virtual/admin/stats").then(({ data }) => setVstats(data)).catch(() => {});
 
   useEffect(() => {
-    loadDash(); loadGs();
+    loadDash(); loadGs(); loadV();
     const t1 = setInterval(loadDash, 3000);
     const t2 = setInterval(loadGs, 2000);
-    return () => { clearInterval(t1); clearInterval(t2); };
+    const t3 = setInterval(loadV, 4000);
+    return () => { clearInterval(t1); clearInterval(t2); clearInterval(t3); };
   }, []);
 
   const saveEdge = async () => {
@@ -75,6 +78,9 @@ export default function AdminGameControl() {
           <MaintCard id="roulette" label="Roulette"    icon={Disc}  enabled={gs.roulette} live={gs.roulette_live} onToggle={(v) => toggleGame("roulette", v)} />
         </div>
       </div>
+
+      {/* Virtual Cricket P&L */}
+      <VirtualPnLCard stats={vstats} />
 
       {/* Crash Bias */}
       <div className="card-surface p-6 space-y-4" data-testid="bias-panel">
@@ -159,6 +165,81 @@ function MaintCard({ id, label, icon: Icon, enabled, live, onToggle }) {
           <div className="font-mono text-lg font-bold text-cyan-300 leading-tight">{players}</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function VirtualPnLCard({ stats }) {
+  const totals = stats?.totals || {};
+  const byMarket = stats?.by_market || {};
+  const wagered = Number(totals.total_wagered || 0);
+  const paidOut = Number(totals.total_paid_out || 0);
+  const profit  = Number(totals.house_profit || 0);
+  const positive = profit >= 0;
+  const inr = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+
+  const rows = Object.entries(byMarket).sort((a, b) => (b[1].profit || 0) - (a[1].profit || 0));
+
+  return (
+    <div className="card-surface p-6 space-y-4" data-testid="virtual-pnl-panel">
+      <div className="flex items-center gap-2">
+        <Trophy className="w-4 h-4 text-yellow-300" />
+        <div className="font-heading font-bold">Virtual Cricket · House P&L</div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <PnLTile label="Total Wagered" value={inr(wagered)}
+                 icon={Coins} color="text-slate-100" border="border-white/10" testid="pnl-wagered" />
+        <PnLTile label="Total Paid Out" value={inr(paidOut)}
+                 icon={TrendingDown} color="text-red-300" border="border-red-500/30" testid="pnl-paid" />
+        <PnLTile label="House Profit" value={inr(profit)}
+                 icon={positive ? TrendingUp : TrendingDown}
+                 color={positive ? "text-green-300" : "text-red-300"}
+                 border={positive ? "border-green-500/40" : "border-red-500/40"}
+                 testid="pnl-profit" />
+      </div>
+
+      <div>
+        <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Breakdown by market</div>
+        {rows.length === 0 ? (
+          <div className="text-xs text-slate-500 text-center py-6">No virtual bets placed yet.</div>
+        ) : (
+          <div className="rounded-lg overflow-hidden border border-white/5">
+            <table className="w-full text-xs">
+              <thead className="bg-white/5 text-[10px] uppercase tracking-widest text-slate-400">
+                <tr>
+                  <th className="text-left px-3 py-2">Market</th>
+                  <th className="text-right px-3 py-2">Bets</th>
+                  <th className="text-right px-3 py-2">Wagered</th>
+                  <th className="text-right px-3 py-2">Paid Out</th>
+                  <th className="text-right px-3 py-2">P&L</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(([m, g]) => (
+                  <tr key={m} className="border-t border-white/5">
+                    <td className="text-left px-3 py-2 font-mono">{m}</td>
+                    <td className="text-right px-3 py-2">{g.count}</td>
+                    <td className="text-right px-3 py-2 font-mono">{inr(g.wagered)}</td>
+                    <td className="text-right px-3 py-2 font-mono text-red-300">{inr(g.paid_out)}</td>
+                    <td className={`text-right px-3 py-2 font-mono font-bold ${g.profit >= 0 ? "text-green-300" : "text-red-300"}`}>{inr(g.profit)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PnLTile({ label, value, icon: Icon, color, border, testid }) {
+  return (
+    <div className={`rounded-xl border ${border} p-4`} data-testid={testid}>
+      <div className="text-[10px] uppercase tracking-widest text-slate-400 flex items-center gap-1">
+        <Icon className="w-3 h-3" /> {label}
+      </div>
+      <div className={`font-mono text-2xl font-black mt-1 leading-tight ${color}`}>{value}</div>
     </div>
   );
 }

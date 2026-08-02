@@ -530,30 +530,10 @@ function BetSidebar({ match, myBets, refreshMyBets, refreshBalance }) {
       {/* My bets */}
       <div className="card-surface p-4">
         <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">My bets on this match</div>
-        <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
           {myBets.length === 0 && <div className="text-xs text-slate-500">No bets yet.</div>}
           {myBets.map((b) => (
-            <div key={b.id} className="text-xs flex items-center justify-between border border-white/5 rounded-lg p-2 bg-white/5">
-              <div className="min-w-0">
-                <div className="font-mono truncate">{b.market} · {b.selection} @ {b.odds_taken}x</div>
-                <div className="text-[10px] text-slate-400">₹{b.amount} · payout ₹{b.potential_payout}</div>
-              </div>
-              <div className="text-right">
-                {b.status === "pending" && b.market === "match_winner" && match.phase !== "completed" ? (
-                  <button
-                    onClick={() => cashout(b.id)}
-                    data-testid={`cashout-${b.id}`}
-                    className="btn-primary px-2.5 py-1 rounded text-[10px]">Cash out</button>
-                ) : (
-                  <span className={`text-[10px] uppercase tracking-widest ${
-                    b.status === "won" ? "text-green-300"
-                    : b.status === "cashed_out" ? "text-cyan-300"
-                    : b.status === "lost" ? "text-red-300"
-                    : "text-slate-400"
-                  }`}>{b.status}</span>
-                )}
-              </div>
-            </div>
+            <BetRow key={b.id} bet={b} match={match} onCashout={cashout} />
           ))}
         </div>
       </div>
@@ -599,24 +579,42 @@ function SelBtn({ label, odds, disabled, onClick, testid }) {
 }
 
 
-/* ─── Fancy: Next-ball outcome market ─── */
+/* ─── Fancy: Next-ball outcome market with 6-sec countdown ring ─── */
+const BALL_TICK_SECS = 6;
 function NextBallMarket({ match, placing, onPlace }) {
   const open  = match.phase === "innings1" || match.phase === "innings2";
   const odds  = match.odds?.next_ball || {};
   const items = ["0", "1", "2", "3", "4", "6", "W"];
+
+  // Ball timer resets on any score change (indicates a new ball just landed → new ball window opens).
+  const battingKey = `${match.batting}-${match.scores?.[match.batting]?.balls || 0}-${match.phase}`;
+  const [tick, setTick] = useState(BALL_TICK_SECS);
+  useEffect(() => {
+    if (!open) return;
+    setTick(BALL_TICK_SECS);
+    const id = setInterval(() => setTick((t) => (t > 0.1 ? t - 0.1 : 0)), 100);
+    return () => clearInterval(id);
+  }, [battingKey, open]);
+
+  const pct = open ? Math.max(0, Math.min(1, tick / BALL_TICK_SECS)) : 0;
+
   return (
     <div className="card-surface p-4" data-testid="mkt-next-ball">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-xs font-bold">Next Ball Outcome</div>
+        <div className="flex items-center gap-2">
+          <div className="text-xs font-bold">Next Ball Outcome</div>
+          {open && <CountdownDot pct={pct} secondsLeft={tick} />}
+        </div>
         <div className="text-[10px] text-slate-500">{open ? "Locks on next ball · No cashout" : "Open in innings only"}</div>
       </div>
       <div className="grid grid-cols-4 gap-2">
         {items.map((o) => (
-          <SelBtn
+          <NextBallBtn
             key={o}
             label={o === "W" ? "OUT" : `${o} run${o === "1" ? "" : "s"}`}
             odds={odds[o]}
-            disabled={!open || placing}
+            pct={pct}
+            disabled={!open || placing || tick < 0.4}
             onClick={() => onPlace(o)}
             testid={`bet-nb-${o}`}
           />
@@ -626,11 +624,75 @@ function NextBallMarket({ match, placing, onPlace }) {
   );
 }
 
+/** Small pill showing remaining seconds until next ball */
+function CountdownDot({ pct, secondsLeft }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-yellow-300">
+      <span className="relative w-3 h-3">
+        <span className="absolute inset-0 rounded-full border border-yellow-500/30" />
+        <span className="absolute inset-0 rounded-full border-2 border-yellow-400"
+              style={{ clipPath: `polygon(50% 50%, 50% 0%, ${50 + 50 * Math.sin(2 * Math.PI * pct)}% ${50 - 50 * Math.cos(2 * Math.PI * pct)}%, 50% 50%)` }} />
+      </span>
+      {secondsLeft.toFixed(1)}s
+    </span>
+  );
+}
+
+/** Full-button variant with a countdown ring drawn on top */
+function NextBallBtn({ label, odds, pct, disabled, onClick, testid }) {
+  const hasOdds = typeof odds === "number" && odds > 1.0;
+  const dashArray = 2 * Math.PI * 18;   // circumference for r=18
+  const dashOffset = dashArray * (1 - pct);
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled || !hasOdds}
+      data-testid={testid}
+      className={`relative rounded-lg px-3 py-3 border text-left transition overflow-hidden ${
+        disabled || !hasOdds
+          ? "border-white/5 bg-white/5 text-slate-500 cursor-not-allowed"
+          : "border-fuchsia-400/40 bg-fuchsia-500/10 text-slate-100 hover:border-fuchsia-400/70"
+      }`}
+    >
+      {/* countdown ring in the top-right corner */}
+      {!disabled && hasOdds && (
+        <svg viewBox="0 0 40 40" className="absolute top-1.5 right-1.5 w-5 h-5">
+          <circle cx="20" cy="20" r="18" stroke="rgba(255,255,255,0.15)" strokeWidth="3" fill="none" />
+          <circle
+            cx="20" cy="20" r="18"
+            stroke={pct > 0.35 ? "#f0abfc" : "#fb7185"}
+            strokeWidth="3" fill="none"
+            strokeDasharray={dashArray}
+            strokeDashoffset={dashOffset}
+            transform="rotate(-90 20 20)"
+            style={{ transition: "stroke-dashoffset 100ms linear" }}
+          />
+        </svg>
+      )}
+      <div className="text-xs font-bold">{label}</div>
+      <div className={`mt-1 font-mono text-lg font-black ${disabled || !hasOdds ? "text-slate-500" : "text-fuchsia-300"}`}>
+        {hasOdds ? `${odds}x` : "—"}
+      </div>
+    </button>
+  );
+}
+
 /* ─── Fancy: 6 / 10 / 15-over runs lines per innings ─── */
 function OverRunsMarket({ match, placing, onPlace }) {
   const groups = match.odds?.over_runs || {};
   const bat = match.batting;
   const innsIdx = match.innings || 0;
+
+  // Filter innings to those with any open cell (user requirement: hide overs already finished)
+  const inningsRows = [1, 2].map((inn) => {
+    const opens = [6, 10, 15]
+      .map((ov) => ({ ov, info: groups[`inn${inn}_o${ov}`] || {} }))
+      .filter((c) => !(c.info.closed || c.info.line == null));
+    return { inn, opens };
+  }).filter((r) => r.opens.length > 0);
+
+  if (inningsRows.length === 0) return null;
+
   return (
     <div className="card-surface p-4" data-testid="mkt-over-runs">
       <div className="flex items-center justify-between mb-3">
@@ -638,53 +700,111 @@ function OverRunsMarket({ match, placing, onPlace }) {
         <div className="text-[10px] text-slate-500">Settles when the over ends · No cashout</div>
       </div>
       <div className="space-y-3">
-        {[1, 2].map((inn) => (
+        {inningsRows.map(({ inn, opens }) => (
           <div key={inn}>
             <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">
               Innings {inn}
               {innsIdx === inn && bat && <span className="ml-1 text-yellow-300">· {bat}</span>}
             </div>
             <div className="grid grid-cols-3 gap-2">
-              {[6, 10, 15].map((ov) => {
-                const info = groups[`inn${inn}_o${ov}`] || {};
-                const closed = !!info.closed || info.line == null;
-                return (
-                  <div key={ov} className={`rounded-lg border p-2 text-xs ${closed ? "border-white/5 bg-white/5" : "border-white/10"}`}>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-300">O{ov}</div>
-                      <div className={`font-mono ${closed ? "text-slate-500" : "text-yellow-300"}`}>{closed ? "—" : info.line}</div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <button
-                        onClick={() => onPlace(`inn${inn}_o${ov}_over`)}
-                        disabled={closed || placing}
-                        data-testid={`bet-or-inn${inn}-o${ov}-over`}
-                        className={`py-1.5 rounded text-[10px] font-bold border transition ${
-                          closed ? "border-white/5 text-slate-500 cursor-not-allowed"
-                          : "border-cyan-400/40 text-cyan-200 bg-cyan-500/10 hover:border-cyan-400/70"
-                        }`}
-                      >
-                        Over · {info.over ?? "—"}x
-                      </button>
-                      <button
-                        onClick={() => onPlace(`inn${inn}_o${ov}_under`)}
-                        disabled={closed || placing}
-                        data-testid={`bet-or-inn${inn}-o${ov}-under`}
-                        className={`py-1.5 rounded text-[10px] font-bold border transition ${
-                          closed ? "border-white/5 text-slate-500 cursor-not-allowed"
-                          : "border-fuchsia-400/40 text-fuchsia-200 bg-fuchsia-500/10 hover:border-fuchsia-400/70"
-                        }`}
-                      >
-                        Under · {info.under ?? "—"}x
-                      </button>
-                    </div>
+              {opens.map(({ ov, info }) => (
+                <div key={ov} className="rounded-lg border p-2 text-xs border-white/10">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-300">O{ov}</div>
+                    <div className="font-mono text-yellow-300">{info.line}</div>
                   </div>
-                );
-              })}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      onClick={() => onPlace(`inn${inn}_o${ov}_over`)}
+                      disabled={placing}
+                      data-testid={`bet-or-inn${inn}-o${ov}-over`}
+                      className="py-1.5 rounded text-[10px] font-bold border transition border-cyan-400/40 text-cyan-200 bg-cyan-500/10 hover:border-cyan-400/70"
+                    >
+                      Over · {info.over}x
+                    </button>
+                    <button
+                      onClick={() => onPlace(`inn${inn}_o${ov}_under`)}
+                      disabled={placing}
+                      data-testid={`bet-or-inn${inn}-o${ov}-under`}
+                      className="py-1.5 rounded text-[10px] font-bold border transition border-fuchsia-400/40 text-fuchsia-200 bg-fuchsia-500/10 hover:border-fuchsia-400/70"
+                    >
+                      Under · {info.under}x
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ))}
       </div>
     </div>
   );
+}
+
+/* ─── Bet row with live cashout preview (green if profit / red if loss) ─── */
+function BetRow({ bet, match, onCashout }) {
+  const isPending = bet.status === "pending";
+  const isMW      = bet.market === "match_winner";
+  const canCashout = isPending && isMW && match.phase !== "completed";
+
+  let cashoutValue = null;
+  let inProfit = null;
+  if (canCashout) {
+    const currentOdds = Number(match.odds?.match_winner?.[bet.selection] || 0);
+    if (currentOdds > 1.0) {
+      cashoutValue = Number(bet.amount) * Number(bet.odds_taken) / currentOdds;
+      inProfit = cashoutValue > Number(bet.amount);
+    }
+  }
+
+  const statusLabel = {
+    won:         "WON",
+    lost:        "LOST",
+    cashed_out:  "CASHED OUT",
+    pending:     "PENDING",
+  }[bet.status] || bet.status;
+  const statusCls = {
+    won:        "text-green-300",
+    lost:       "text-red-300",
+    cashed_out: "text-cyan-300",
+    pending:    "text-slate-400",
+  }[bet.status] || "text-slate-400";
+
+  return (
+    <div className="text-xs border border-white/5 rounded-lg p-2 bg-white/5" data-testid={`bet-row-${bet.id}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono truncate">{bet.market} · {bet.selection} @ {bet.odds_taken}x</div>
+          <div className="text-[10px] text-slate-400">Stake ₹{bet.amount} · Potential ₹{bet.potential_payout}</div>
+        </div>
+        <div className="text-right shrink-0">
+          {canCashout && cashoutValue !== null ? (
+            <button
+              onClick={() => onCashout(bet.id)}
+              data-testid={`cashout-${bet.id}`}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition
+                ${inProfit
+                  ? "border-green-400/60 bg-green-500/15 text-green-200 hover:bg-green-500/25"
+                  : "border-red-400/60 bg-red-500/15 text-red-200 hover:bg-red-500/25"
+              }`}
+              title={inProfit ? "In profit — take the win" : "Loss — cash out to reduce risk"}
+            >
+              <div className="text-[9px] uppercase tracking-widest opacity-80">
+                {inProfit ? "Profit · cash out" : "Loss · cash out"}
+              </div>
+              <div className="font-mono">₹{cashoutValue.toFixed(2)}</div>
+            </button>
+          ) : (
+            <span className={`text-[10px] uppercase tracking-widest font-bold ${statusCls}`}>
+              {statusLabel}
+              {bet.status === "won"        && bet.payout != null && ` +₹${Number(bet.payout).toFixed(2)}`}
+              {bet.status === "cashed_out" && bet.payout != null && ` ₹${Number(bet.payout).toFixed(2)}`}
+              {bet.status === "lost"       && ` -₹${Number(bet.amount).toFixed(2)}`}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
 }

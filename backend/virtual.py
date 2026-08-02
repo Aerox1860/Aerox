@@ -821,6 +821,46 @@ def build_router(db, credit_fn, debit_fn, current_user_dep):
         docs = await db.virtual_bets.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
         return docs
 
+    async def _get_admin_stats():
+        """Aggregate wagered / paid-out / house profit for the virtual arena.
+        Called from the admin router in server.py so we don't need auth wiring here.
+        """
+        rows = await db.virtual_bets.aggregate([
+            {"$group": {
+                "_id": {"market": "$market", "status": "$status"},
+                "amount":  {"$sum": "$amount"},
+                "payout":  {"$sum": "$payout"},
+                "count":   {"$sum": 1},
+            }}
+        ]).to_list(500)
+        totals = {"total_wagered": 0.0, "total_paid_out": 0.0, "count_all": 0,
+                  "count_won": 0, "count_lost": 0, "count_cashed_out": 0, "count_pending": 0}
+        by_market: Dict[str, Dict[str, float]] = {}
+        for r in rows:
+            m = r["_id"]["market"]; st = r["_id"]["status"]
+            amt = float(r.get("amount", 0) or 0)
+            pay = float(r.get("payout", 0) or 0) if st in ("won", "cashed_out") else 0.0
+            c   = int(r.get("count", 0))
+            totals["total_wagered"] += amt
+            totals["total_paid_out"] += pay
+            totals["count_all"] += c
+            totals[f"count_{st}"] = totals.get(f"count_{st}", 0) + c
+            g = by_market.setdefault(m, {"wagered": 0.0, "paid_out": 0.0, "count": 0})
+            g["wagered"]  += amt
+            g["paid_out"] += pay
+            g["count"]    += c
+        totals["total_wagered"]  = round(totals["total_wagered"], 2)
+        totals["total_paid_out"] = round(totals["total_paid_out"], 2)
+        totals["house_profit"]   = round(totals["total_wagered"] - totals["total_paid_out"], 2)
+        for m in by_market:
+            by_market[m]["wagered"]  = round(by_market[m]["wagered"], 2)
+            by_market[m]["paid_out"] = round(by_market[m]["paid_out"], 2)
+            by_market[m]["profit"]   = round(by_market[m]["wagered"] - by_market[m]["paid_out"], 2)
+        return {"totals": totals, "by_market": by_market}
+
+    # Expose to server.py via router.state
+    router.get_admin_stats = _get_admin_stats  # type: ignore[attr-defined]
+
     @router.websocket("/ws/{match_id}")
     async def ws_match(ws: WebSocket, match_id: str):
         m = engine.matches.get(match_id)
