@@ -178,8 +178,19 @@ def _fresh_match_shell(match_no: int, tour_type: str = "international") -> Dict[
         "bowling":     None,
         "innings":     0,             # 0 (pre), 1, 2
         "scores": {                    # per team_short
-            teams[0]["short"]: {"runs": 0, "wickets": 0, "balls": 0, "overs_str": "0.0"},
-            teams[1]["short"]: {"runs": 0, "wickets": 0, "balls": 0, "overs_str": "0.0"},
+            teams[0]["short"]: {"runs": 0, "wickets": 0, "balls": 0, "overs_str": "0.0",
+                                # Partnership: runs & balls scored since last wicket
+                                "partnership_runs": 0, "partnership_balls": 0,
+                                # Last wicket that fell in this innings
+                                "last_wicket": None,   # {"name": str, "runs": int, "balls": int} or None
+                                # Current & past bowlers (name + O/R/W/M) for this innings
+                                "bowler_stats": {},    # {bowler_name: {"balls": int, "runs": int, "wickets": int, "maidens": int, "dots_this_over": int}}
+                                "current_bowler": None},
+            teams[1]["short"]: {"runs": 0, "wickets": 0, "balls": 0, "overs_str": "0.0",
+                                "partnership_runs": 0, "partnership_balls": 0,
+                                "last_wicket": None,
+                                "bowler_stats": {},
+                                "current_bowler": None},
         },
         "target":      None,          # innings-2 target
         "winner":      None,          # short name at completion
@@ -567,11 +578,27 @@ class VirtualEngine:
 
     async def _run_innings(self, m: Dict[str, Any], first: bool):
         bat = m["batting"]
+        bowl = m["bowling"]
         # Open batting pair — striker + non-striker + next batter to walk in
         m["striker_idx"]     = 0
         m["non_striker_idx"] = 1
         m["next_batter_idx"] = 2
+        # Rotating bowlers from the bowling team squad (deterministic: bowler_pool cycles)
+        bowl_squad = m["squads"][bowl]
+        # A 20-over T20 uses ~5 different bowlers; cycle through positions 4..10 mostly.
+        bowler_pool = [p["name"] for p in bowl_squad[4:11]]   # 7 candidate bowlers
+        if not bowler_pool:
+            bowler_pool = [p["name"] for p in bowl_squad]
+
         for over in range(FORMAT_OVERS):
+            # Pick a bowler for this over (rotate so no bowler bowls two in a row is roughly satisfied)
+            bowler_name = bowler_pool[over % len(bowler_pool)]
+            m["scores"][bat]["current_bowler"] = bowler_name
+            bs = m["scores"][bat]["bowler_stats"].setdefault(
+                bowler_name, {"balls": 0, "runs": 0, "wickets": 0, "maidens": 0, "dots_this_over": 0}
+            )
+            bs["dots_this_over"] = 0   # reset per over
+
             for ball in range(BALLS_PER_OVER):
                 sc = m["scores"][bat]
                 # Stop conditions
@@ -590,25 +617,46 @@ class VirtualEngine:
                 if striker is not None:
                     striker["balls"] += 1
 
+                # Bowler took the ball
+                bs["balls"] += 1
+
                 text = ""
                 if outcome == "W":
                     sc["wickets"] += 1
-                    if striker is not None: striker["out"] = True
+                    if striker is not None:
+                        striker["out"] = True
+                        # Record last-wicket entry
+                        sc["last_wicket"] = {
+                            "name":  striker["name"],
+                            "runs":  striker["runs"],
+                            "balls": striker["balls"],
+                        }
                     text = f"OUT! Wicket falls — {sc['wickets']}/10"
+                    bs["wickets"] += 1
+                    # Reset partnership on wicket
+                    sc["partnership_runs"]  = 0
+                    sc["partnership_balls"] = 0
                     # New batter walks in as the striker
                     if m["next_batter_idx"] is not None and m["next_batter_idx"] < 11:
                         m["striker_idx"] = m["next_batter_idx"]
                         m["next_batter_idx"] += 1
                     else:
                         m["striker_idx"] = None
+                    # Partnership counts this delivery too (as a ball faced by the pair)
+                    sc["partnership_balls"] += 1
                 else:
                     runs = int(outcome)
                     sc["runs"] += runs
+                    bs["runs"] += runs
+                    if runs == 0:
+                        bs["dots_this_over"] += 1
                     if striker is not None:
                         striker["runs"] += runs
                         if outcome == "4": striker["fours"] += 1
                         elif outcome == "6": striker["sixes"] += 1
                     text = f"{outcome} run{'s' if runs != 1 else ''}"
+                    sc["partnership_runs"]  += runs
+                    sc["partnership_balls"] += 1
                     # Rotate strike on odd runs
                     if runs % 2 == 1 and m["non_striker_idx"] is not None:
                         m["striker_idx"], m["non_striker_idx"] = m["non_striker_idx"], m["striker_idx"]
@@ -619,6 +667,7 @@ class VirtualEngine:
                     "outcome": outcome,
                     "team": bat,
                     "score": f"{sc['runs']}/{sc['wickets']}",
+                    "bowler": bowler_name,
                 }
                 m["commentary"].insert(0, comm)
                 m["commentary"] = m["commentary"][:24]
@@ -633,7 +682,9 @@ class VirtualEngine:
                 _recompute_odds(m)
                 await self._broadcast(m["id"], "ball", {"match": self._public_match(m), "comm": comm})
 
-            # end of over — light pause + strike rotation
+            # end of over — maiden check + light pause + strike rotation
+            if bs["dots_this_over"] == BALLS_PER_OVER:
+                bs["maidens"] += 1
             if m["scores"][bat]["wickets"] >= MAX_WICKETS: break
             if not first and (m["scores"][bat]["runs"] >= (m["target"] or 0)): break
             # Rotate strike at the end of every completed over (unless a wicket has just changed the striker)

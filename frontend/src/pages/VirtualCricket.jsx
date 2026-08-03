@@ -312,89 +312,292 @@ function Scoreboard({ match }) {
   const [t1, t2] = match.teams;
   const s1 = match.scores[t1.short] || {};
   const s2 = match.scores[t2.short] || {};
-  return (
-    <div className="card-surface p-5">
-      <div className="text-[10px] uppercase tracking-widest text-slate-400 flex items-center gap-2">
-        {match.format} · {match.league}
-      </div>
-      <div className="mt-4 space-y-3">
-        <TeamRow team={t1} score={s1} batting={match.batting === t1.short} phase={match.phase} />
-        <TeamRow team={t2} score={s2} batting={match.batting === t2.short} phase={match.phase} />
-      </div>
-      <MatchStatusLine match={match} />
-      {match.batters && ["innings1", "innings2"].includes(match.phase) && (
-        <BattersPanel batters={match.batters} />
-      )}
-      {["pre_match", "toss", "lineup"].includes(match.phase) && (
-        <TossStage match={match} />
-      )}
-    </div>
-  );
-}
 
-/** Compact striker + non-striker card shown during live innings. */
-function BattersPanel({ batters }) {
-  const striker = batters?.striker;
-  const nonStriker = batters?.non_striker;
-  return (
-    <div className="mt-4 pt-4 border-t border-white/5">
-      <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Batters at the crease</div>
-      <div className="grid grid-cols-2 gap-2" data-testid="batters-panel">
-        <BatterCard b={striker} onStrike testid="batter-striker" />
-        <BatterCard b={nonStriker} testid="batter-non-striker" />
-      </div>
-    </div>
-  );
-}
+  // Which side is currently batting? Used to render as the "big" side.
+  const isPre = ["pre_match", "toss", "lineup"].includes(match.phase);
+  const live  = ["innings1", "innings2"].includes(match.phase);
+  const batShort = match.batting;
+  const sc = batShort ? (match.scores[batShort] || {}) : {};
+  const overs = Number((sc.balls || 0) / 6);
+  const crr   = overs > 0 ? ((sc.runs || 0) / overs).toFixed(2) : "—";
 
-function BatterCard({ b, onStrike = false, testid }) {
-  if (!b) return <div className="rounded-lg border border-white/5 p-3 text-xs text-slate-500 text-center">—</div>;
   return (
-    <div
-      className={`rounded-lg p-3 border ${onStrike ? "border-yellow-400/60 bg-yellow-500/10" : "border-white/10 bg-white/5"}`}
-      data-testid={testid}
-    >
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-bold truncate flex items-center gap-1.5">
-          {b.name}
-          {onStrike && <span className="text-[9px] px-1 py-0.5 rounded bg-yellow-500/15 border border-yellow-400/40 text-yellow-300 uppercase tracking-widest">On Strike</span>}
+    <div className="card-surface p-0 overflow-hidden" data-testid="scorecard">
+      {/* Header: stadium-style team scores + CRR bar */}
+      <div className="relative px-4 pt-3 pb-4 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-b border-white/5 overflow-hidden">
+        {/* Stadium tint */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.22]">
+          <div className="absolute inset-x-0 top-0 h-2/3 bg-gradient-to-b from-blue-900/70 via-blue-800/40 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-emerald-900/60 via-emerald-800/25 to-transparent" />
+        </div>
+
+        <div className="relative flex items-center justify-between gap-3 text-slate-100">
+          <TeamScoreBlock team={t1} score={s1} batting={batShort === t1.short} align="left" />
+          {/* Middle CRR bar */}
+          <div className="flex flex-col items-center min-w-[120px]">
+            <div className="w-full h-3 rounded-md bg-red-700/70 border border-red-500/50 shadow-inner" />
+            <div className="mt-2 text-[11px] font-mono text-slate-200 tracking-wide" data-testid="crr">
+              CRR: <span className="text-white font-bold">{crr}</span>
+            </div>
+          </div>
+          <TeamScoreBlock team={t2} score={s2} batting={batShort === t2.short} align="right" />
+        </div>
+
+        {/* Status line (Live · Innings 1, Break, etc.) */}
+        <div className="relative mt-3 text-center text-[11px] uppercase tracking-widest text-slate-300/90">
+          <ScoreHeadline match={match} />
         </div>
       </div>
-      <div className="mt-1 flex items-center justify-between font-mono">
-        <span className="text-lg font-black text-slate-100">{b.runs}<span className="text-slate-500 text-xs"> ({b.balls})</span></span>
-        <span className="text-[10px] text-slate-400">4s {b.fours} · 6s {b.sixes}</span>
+
+      {/* Partnership + last wicket */}
+      {live && (sc.partnership_balls > 0 || sc.last_wicket) && (
+        <div className="px-4 py-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[12px] border-b border-white/5 bg-white/[0.02]" data-testid="scorecard-partnership">
+          <div>
+            <span className="text-slate-400">Partnership: </span>
+            <span className="font-mono text-slate-100 font-semibold">{sc.partnership_runs || 0} ({sc.partnership_balls || 0})</span>
+          </div>
+          {sc.last_wicket && (
+            <div>
+              <span className="text-slate-400">Last Wicket: </span>
+              <span className="font-mono text-slate-100 font-semibold">
+                {sc.last_wicket.name} {sc.last_wicket.runs} ({sc.last_wicket.balls})
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Ball-by-ball strip (last 2 overs) */}
+      {live && <OverStrip match={match} />}
+
+      {/* Batsmen table */}
+      {live && match.batters && (
+        <BatsmenTable batters={match.batters} />
+      )}
+
+      {/* Bowler table */}
+      {live && (
+        <BowlerTable scoreEntry={sc} />
+      )}
+
+      {/* Pre-match toss card */}
+      {isPre && (
+        <div className="px-4 pb-4">
+          <TossStage match={match} />
+        </div>
+      )}
+
+      {/* Completed banner */}
+      {match.phase === "completed" && (
+        <div className="px-4 py-3 text-center text-yellow-300 font-mono text-sm border-t border-white/5">
+          {match.winner === "TIE" ? "Match tied" : `${match.winner} wins the match!`}
+        </div>
+      )}
+
+      {/* Meta footer */}
+      <div className="px-4 py-2 text-[10px] uppercase tracking-widest text-slate-500 border-t border-white/5 flex items-center justify-between">
+        <span>{match.format} · {match.league}</span>
+        {match.target ? <span>Target · <span className="text-slate-300 font-mono">{match.target}</span></span> : null}
       </div>
     </div>
   );
 }
 
-function MatchStatusLine({ match }) {
-  const line = useMemo(() => {
-    if (match.phase === "pre_match") {
-      const t = match.toss_at ? new Date(match.toss_at) : null;
-      const timeStr = t ? t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
-      return `Toss scheduled at ${timeStr} · Bets are open`;
-    }
-    if (match.phase === "toss")   return `${match.toss_winner} won the toss & chose to ${match.toss_choice}`;
-    if (match.phase === "lineup") {
-      const t = match.play_at ? new Date(match.play_at) : null;
-      const timeStr = t ? t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
-      return `Teams line-up · Play starts at ${timeStr}`;
-    }
-    if (match.phase === "innings1") return `${match.batting} batting first`;
-    if (match.phase === "break") return `Innings break — target ${match.target}`;
-    if (match.phase === "innings2") {
-      const sc = match.scores[match.batting] || {};
-      const bl = 20 * 6 - (sc.balls || 0);
-      const need = Math.max(0, (match.target || 0) - (sc.runs || 0));
-      const rrr = bl > 0 ? ((need / bl) * 6).toFixed(2) : "—";
-      return `${match.batting} need ${need} in ${bl} balls · RRR ${rrr}`;
-    }
-    if (match.phase === "completed") return match.winner === "TIE" ? "Match tied" : `${match.winner} wins the match!`;
-    return "";
-  }, [match]);
+/** Team score block on either side of the CRR bar. */
+function TeamScoreBlock({ team, score, batting, align }) {
+  const right = align === "right";
   return (
-    <div className="mt-4 pt-4 border-t border-white/5 text-[13px] font-mono text-yellow-300">{line}</div>
+    <div className={`flex-1 min-w-0 flex flex-col ${right ? "items-end text-right" : "items-start text-left"}`} data-testid={`team-block-${team.short}`}>
+      <div className="flex items-center gap-1.5">
+        {!right && <TeamDot color={team.color} />}
+        <span className={`font-heading font-black text-2xl sm:text-3xl leading-none ${batting ? "text-white" : "text-slate-400"}`}>
+          {team.short}
+        </span>
+        {right && <TeamDot color={team.color} />}
+      </div>
+      <div className={`mt-1 font-mono ${batting ? "text-white" : "text-slate-500"}`}>
+        <span className="text-xl sm:text-2xl font-black">{score.runs ?? 0}/{score.wickets ?? 0}</span>
+        <span className="text-xs sm:text-sm ml-1 opacity-80">({score.overs_str ?? "0.0"})</span>
+      </div>
+    </div>
+  );
+}
+
+function TeamDot({ color }) {
+  return <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: color, boxShadow: `0 0 8px ${color}88` }} />;
+}
+
+function ScoreHeadline({ match }) {
+  if (match.phase === "pre_match") {
+    const t = match.toss_at ? new Date(match.toss_at) : null;
+    const timeStr = t ? t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
+    return <>Toss at {timeStr} · Bets open</>;
+  }
+  if (match.phase === "toss")   return <>{match.toss_winner} won the toss · chose to {match.toss_choice}</>;
+  if (match.phase === "lineup") {
+    const t = match.play_at ? new Date(match.play_at) : null;
+    const timeStr = t ? t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
+    return <>Line-up · Play starts at {timeStr}</>;
+  }
+  if (match.phase === "innings1") return <span className="text-emerald-300">● Live · Innings 1</span>;
+  if (match.phase === "break")    return <>Innings Break · Target {match.target}</>;
+  if (match.phase === "innings2") {
+    const sc = match.scores[match.batting] || {};
+    const bl = 20 * 6 - (sc.balls || 0);
+    const need = Math.max(0, (match.target || 0) - (sc.runs || 0));
+    const rrr = bl > 0 ? ((need / bl) * 6).toFixed(2) : "—";
+    return <span className="text-emerald-300">● Live · Need {need} in {bl} balls · RRR {rrr}</span>;
+  }
+  if (match.phase === "completed") return match.winner === "TIE" ? <>Match Tied</> : <>{match.winner} Wins</>;
+  return null;
+}
+
+/** Ball-by-ball strip: last 2 overs, each ball as a coloured circle. */
+function OverStrip({ match }) {
+  // Group commentary balls by over (from batting team's last 2 overs).
+  const battingShort = match.batting;
+  const balls = (match.commentary || []).filter(
+    (c) => c.team === battingShort && c.outcome != null
+  );
+  // Group into buckets by integer over (ball_idx 1..6 belongs to that over)
+  const buckets = {};
+  balls.forEach((b) => {
+    // b.over like "3.4" → over label = 3 (since ball is 4)
+    const [ovStr, blStr] = String(b.over).split(".");
+    const overNum = parseInt(ovStr || "0", 10);
+    // If ball_idx is 0 (i.e. "3.0" printed on first ball of an over), that's actually over 3 ball 6 in some renders.
+    // We infer real over by ball_idx: ball 6 of over N is stored as "N.0" from backend (roll-over). So use overNum-1 if blStr === "0".
+    const actualOver = blStr === "0" ? Math.max(0, overNum - 1) : overNum;
+    if (!buckets[actualOver]) buckets[actualOver] = [];
+    buckets[actualOver].push(b);
+  });
+  const overNums = Object.keys(buckets).map(Number).sort((a, b) => b - a).slice(0, 2);   // last two overs
+  if (overNums.length === 0) return null;
+
+  return (
+    <div className="px-4 py-3 border-b border-white/5 bg-white/[0.02] overflow-x-auto" data-testid="over-strip">
+      <div className="flex items-center gap-4 min-w-min">
+        {overNums.map((ov) => {
+          // Balls within this over: sort by ball_idx ascending (older first). Backend inserts at 0 so reverse.
+          const list = [...buckets[ov]].reverse();
+          return (
+            <div key={ov} className="flex items-center gap-1.5">
+              <div className="px-2 py-1 rounded-md border border-white/15 bg-white/5 text-xs font-mono text-slate-200">
+                Over {ov + 1}
+              </div>
+              {list.map((b, i) => (
+                <BallDot key={i} outcome={b.outcome} />
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BallDot({ outcome }) {
+  const styles = {
+    "0": "bg-slate-700 text-slate-200 border-slate-500",
+    "1": "bg-amber-900/70 text-amber-100 border-amber-700",
+    "2": "bg-amber-800/70 text-amber-100 border-amber-600",
+    "3": "bg-amber-700/70 text-amber-100 border-amber-500",
+    "4": "bg-blue-600 text-white border-blue-400",
+    "6": "bg-purple-600 text-white border-purple-400",
+    "W": "bg-red-600 text-white border-red-400",
+  };
+  const cls = styles[outcome] || styles["0"];
+  return (
+    <div className={`w-7 h-7 rounded-full grid place-items-center text-[11px] font-mono font-bold border ${cls}`}>
+      {outcome}
+    </div>
+  );
+}
+
+/** Batsmen table — striker highlighted with a bat icon. */
+function BatsmenTable({ batters }) {
+  const striker = batters?.striker;
+  const nonStriker = batters?.non_striker;
+  const sr = (b) => (b && b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : "—");
+  return (
+    <div className="px-4 py-3 border-b border-white/5" data-testid="batsmen-table">
+      <table className="w-full text-[12px]">
+        <thead>
+          <tr className="text-slate-400 text-[10px] uppercase tracking-widest">
+            <th className="text-left font-semibold pb-1">Batsmen</th>
+            <th className="text-right font-semibold pb-1 w-10">R</th>
+            <th className="text-right font-semibold pb-1 w-10">B</th>
+            <th className="text-right font-semibold pb-1 w-10">4s</th>
+            <th className="text-right font-semibold pb-1 w-10">6s</th>
+            <th className="text-right font-semibold pb-1 w-14">SR</th>
+          </tr>
+        </thead>
+        <tbody className="font-mono">
+          <BatsmanRow b={striker} onStrike testid="row-striker" />
+          <BatsmanRow b={nonStriker} testid="row-non-striker" />
+        </tbody>
+      </table>
+    </div>
+  );
+
+  function BatsmanRow({ b, onStrike = false, testid }) {
+    if (!b) return (
+      <tr data-testid={testid}><td colSpan={6} className="py-1 text-slate-500 text-center">—</td></tr>
+    );
+    return (
+      <tr className={onStrike ? "text-yellow-200" : "text-slate-100"} data-testid={testid}>
+        <td className="py-1 text-left flex items-center gap-1.5">
+          {onStrike ? <span className="text-yellow-400" title="On strike">🏏</span> : <span className="w-3.5" />}
+          <span className="truncate">{b.name}{b.out ? "*" : ""}</span>
+        </td>
+        <td className="text-right py-1 font-bold">{b.runs}</td>
+        <td className="text-right py-1">{b.balls}</td>
+        <td className="text-right py-1">{b.fours}</td>
+        <td className="text-right py-1">{b.sixes}</td>
+        <td className="text-right py-1">{sr(b)}</td>
+      </tr>
+    );
+  }
+}
+
+/** Bowler table — shows the current bowler's O/R/M/W/Eco. */
+function BowlerTable({ scoreEntry }) {
+  const bname = scoreEntry?.current_bowler;
+  const bs = bname ? (scoreEntry?.bowler_stats?.[bname] || {}) : {};
+  const balls = bs.balls || 0;
+  const overs = `${Math.floor(balls / 6)}.${balls % 6}`;
+  const runs  = bs.runs || 0;
+  const wkts  = bs.wickets || 0;
+  const maidens = bs.maidens || 0;
+  const eco = balls > 0 ? ((runs / balls) * 6).toFixed(2) : "—";
+  return (
+    <div className="px-4 py-3" data-testid="bowler-table">
+      <table className="w-full text-[12px]">
+        <thead>
+          <tr className="text-slate-400 text-[10px] uppercase tracking-widest">
+            <th className="text-left font-semibold pb-1">Bowler</th>
+            <th className="text-right font-semibold pb-1 w-12">O</th>
+            <th className="text-right font-semibold pb-1 w-10">R</th>
+            <th className="text-right font-semibold pb-1 w-10">M</th>
+            <th className="text-right font-semibold pb-1 w-10">W</th>
+            <th className="text-right font-semibold pb-1 w-14">Eco</th>
+          </tr>
+        </thead>
+        <tbody className="font-mono">
+          <tr className="text-slate-100">
+            <td className="py-1 text-left flex items-center gap-1.5">
+              <span className="text-red-400">●</span>
+              <span className="truncate">{bname || "—"}</span>
+            </td>
+            <td className="text-right py-1">{overs}</td>
+            <td className="text-right py-1">{runs}</td>
+            <td className="text-right py-1">{maidens}</td>
+            <td className="text-right py-1 font-bold">{wkts}</td>
+            <td className="text-right py-1">{eco}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }
 
