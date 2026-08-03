@@ -320,47 +320,33 @@ function Scoreboard({ match }) {
   const overs = Number((sc.balls || 0) / 6);
   const crr   = overs > 0 ? ((sc.runs || 0) / overs).toFixed(2) : "—";
 
+  const STADIUM_BG = "https://customer-assets-lxgj4vgw.emergentagent.net/job_aerox-wallet/artifacts/wi3juzsp_image.png";
   return (
-    <div className="card-surface p-0 overflow-hidden border-emerald-500/25 shadow-[0_0_40px_rgba(16,185,129,0.10)]" data-testid="scorecard">
-      {/* ── Header: Stadium sky + team scores + CRR bar ─────────────── */}
+    <div className="card-surface p-0 overflow-hidden border-emerald-500/25 shadow-[0_0_40px_rgba(16,185,129,0.10)] relative" data-testid="scorecard">
+      {/* ── Actual stadium reference image as full-card backdrop ─── */}
       <div
-        className="relative px-4 pt-3 pb-4 overflow-hidden"
+        aria-hidden
+        className="absolute inset-0 z-0"
         style={{
-          backgroundImage: `
-            radial-gradient(ellipse 90% 60% at 15% 0%, rgba(255,255,255,0.28), transparent 60%),
-            radial-gradient(ellipse 90% 60% at 85% 0%, rgba(255,255,255,0.22), transparent 60%),
-            radial-gradient(ellipse 60% 40% at 50% 100%, rgba(0,0,0,0.35), transparent 70%),
-            linear-gradient(180deg, #0b3a8a 0%, #1449a0 40%, #0f3d80 85%, #062b60 100%)
-          `,
+          backgroundImage: `url(${STADIUM_BG})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          filter: "blur(6px) saturate(1.1)",
+          transform: "scale(1.08)",   // hide blur edges
         }}
-      >
-        {/* Stadium stand silhouette (SVG) — sits behind the scores */}
-        <svg
-          aria-hidden
-          viewBox="0 0 400 60"
-          preserveAspectRatio="none"
-          className="absolute inset-x-0 bottom-0 h-6 w-full opacity-40"
-        >
-          <path
-            d="M0,60 L0,32 Q30,18 60,28 T120,26 T180,30 T240,22 T300,28 T360,24 L400,30 L400,60 Z"
-            fill="#0a1f4a"
-          />
-          <path
-            d="M0,60 L0,44 Q40,36 80,42 T160,40 T240,44 T320,38 T400,42 L400,60 Z"
-            fill="#0a1a3a"
-            opacity="0.9"
-          />
-        </svg>
-        {/* Floodlight beams — top corners */}
-        <div aria-hidden className="absolute -top-6 left-2 w-10 h-10 rounded-full bg-white/25 blur-2xl" />
-        <div aria-hidden className="absolute -top-6 right-2 w-10 h-10 rounded-full bg-white/20 blur-2xl" />
+      />
+      {/* Dark tint to make our overlaid data legible while preserving the stadium/pitch colours */}
+      <div aria-hidden className="absolute inset-0 z-0 bg-black/55" />
 
-        <div className="relative flex items-center justify-between gap-3 text-white">
+      {/* ── Header: Team scores + CRR bar over the stadium band ─────── */}
+      <div className="relative z-10 px-4 pt-3 pb-4">
+        <div className="flex items-center justify-between gap-3 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.65)]">
           <TeamScoreBlock team={t1} score={s1} batting={batShort === t1.short} align="left" />
           {/* Middle CRR bar */}
           <div className="flex flex-col items-center min-w-[120px]">
-            <div className="w-full h-3 rounded-md bg-red-700/85 border border-red-500/60 shadow-inner" />
-            <div className="mt-2 text-[11px] font-mono text-white/95 tracking-wide" data-testid="crr">
+            <div className="w-full h-3 rounded-md bg-red-700/90 border border-red-500/60 shadow-inner" />
+            <div className="mt-2 text-[11px] font-mono text-white tracking-wide" data-testid="crr">
               CRR: <span className="text-white font-bold">{crr}</span>
             </div>
           </div>
@@ -368,50 +354,23 @@ function Scoreboard({ match }) {
         </div>
 
         {/* Status line */}
-        <div className="relative mt-3 text-center text-[11px] uppercase tracking-widest text-white/90">
+        <div className="mt-3 text-center text-[11px] uppercase tracking-widest text-white/95 drop-shadow-[0_2px_3px_rgba(0,0,0,0.7)]">
           <ScoreHeadline match={match} />
         </div>
       </div>
 
-      {/* ── Body: Green cricket ground with pitch strip down the middle ── */}
-      <div
-        className="relative"
-        style={{
-          backgroundImage: `
-            radial-gradient(ellipse 60% 90% at 50% 50%, rgba(255,255,255,0.06), transparent 65%),
-            linear-gradient(90deg,
-              #0f4a26 0%, #14582e 18%,
-              #b28152 44%, #d0996a 50%, #b28152 56%,
-              #14582e 82%, #0f4a26 100%),
-            linear-gradient(180deg, #14582e 0%, #0f4a26 100%)
-          `,
-          backgroundBlendMode: "screen, normal, normal",
-        }}
-      >
-        {/* Field mowing stripes (horizontal) */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.10]"
-          style={{
-            backgroundImage:
-              "repeating-linear-gradient(0deg, rgba(255,255,255,0.16) 0 22px, transparent 22px 44px)",
-          }}
-        />
-        {/* Subtle vignette */}
-        <div aria-hidden className="pointer-events-none absolute inset-0" style={{
-          background: "radial-gradient(ellipse 100% 80% at 50% 50%, transparent 55%, rgba(0,0,0,0.35) 100%)"
-        }} />
-
+      {/* ── Body content ────────────────────────────────────────────── */}
+      <div className="relative z-10">
         {/* Partnership + last wicket */}
         {live && (sc.partnership_balls > 0 || sc.last_wicket) && (
-          <div className="relative px-4 py-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[12px] border-b border-white/10 text-white bg-black/25 backdrop-blur-[2px]" data-testid="scorecard-partnership">
+          <div className="px-4 py-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[12px] border-b border-white/15 text-white bg-black/40 backdrop-blur-[2px]" data-testid="scorecard-partnership">
             <div>
-              <span className="text-emerald-100/90">Partnership: </span>
+              <span className="text-emerald-100">Partnership: </span>
               <span className="font-mono font-semibold">{sc.partnership_runs || 0} ({sc.partnership_balls || 0})</span>
             </div>
             {sc.last_wicket && (
               <div>
-                <span className="text-emerald-100/90">Last Wicket: </span>
+                <span className="text-emerald-100">Last Wicket: </span>
                 <span className="font-mono font-semibold">
                   {sc.last_wicket.name} {sc.last_wicket.runs} ({sc.last_wicket.balls})
                 </span>
@@ -433,22 +392,22 @@ function Scoreboard({ match }) {
           <BowlerTable scoreEntry={sc} />
         )}
 
-        {/* Pre-match toss card (on grass) */}
+        {/* Pre-match toss card */}
         {isPre && (
-          <div className="relative px-4 py-4">
+          <div className="px-4 py-4">
             <TossStage match={match} />
           </div>
         )}
 
         {/* Completed banner */}
         {match.phase === "completed" && (
-          <div className="relative px-4 py-3 text-center text-yellow-300 font-mono text-sm border-t border-white/10 bg-black/30">
+          <div className="px-4 py-3 text-center text-yellow-300 font-mono text-sm border-t border-white/15 bg-black/50">
             {match.winner === "TIE" ? "Match tied" : `${match.winner} wins the match!`}
           </div>
         )}
 
         {/* Meta footer */}
-        <div className="relative px-4 py-2 text-[10px] uppercase tracking-widest text-white/80 border-t border-white/10 flex items-center justify-between bg-black/30">
+        <div className="px-4 py-2 text-[10px] uppercase tracking-widest text-white/85 border-t border-white/15 flex items-center justify-between bg-black/50">
           <span>{match.format} · {match.league}</span>
           {match.target ? <span>Target · <span className="text-white font-mono">{match.target}</span></span> : null}
         </div>
