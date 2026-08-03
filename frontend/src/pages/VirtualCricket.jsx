@@ -288,10 +288,9 @@ function MatchRoom({ initial, onClose }) {
           </div>
 
           <div className="grid lg:grid-cols-[1fr,340px] gap-4">
-            {/* Scoreboard + commentary */}
+            {/* Scoreboard only (commentary removed — ball strip already shows the same info) */}
             <div className="space-y-4">
               <Scoreboard match={match} />
-              <Commentary match={match} onSettle={settle} onRefresh={refresh} />
             </div>
 
             {/* Betting sidebar */}
@@ -322,82 +321,99 @@ function Scoreboard({ match }) {
   const crr   = overs > 0 ? ((sc.runs || 0) / overs).toFixed(2) : "—";
 
   return (
-    <div className="card-surface p-0 overflow-hidden" data-testid="scorecard">
-      {/* Header: stadium-style team scores + CRR bar */}
-      <div className="relative px-4 pt-3 pb-4 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-b border-white/5 overflow-hidden">
-        {/* Stadium tint */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.22]">
-          <div className="absolute inset-x-0 top-0 h-2/3 bg-gradient-to-b from-blue-900/70 via-blue-800/40 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-emerald-900/60 via-emerald-800/25 to-transparent" />
+    <div className="card-surface p-0 overflow-hidden border-emerald-500/20" data-testid="scorecard">
+      {/* Header: stadium blue sky + team scores + CRR bar */}
+      <div className="relative px-4 pt-3 pb-4 overflow-hidden"
+           style={{
+             background:
+               "linear-gradient(180deg, #0b3a8a 0%, #1e4fa6 45%, #164a89 100%)",
+           }}>
+        {/* Subtle stadium light rays */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-25">
+          <div className="absolute inset-x-0 top-0 h-full bg-[radial-gradient(circle_at_50%_-20%,rgba(255,255,255,0.35),transparent_55%)]" />
         </div>
 
-        <div className="relative flex items-center justify-between gap-3 text-slate-100">
+        <div className="relative flex items-center justify-between gap-3 text-white">
           <TeamScoreBlock team={t1} score={s1} batting={batShort === t1.short} align="left" />
           {/* Middle CRR bar */}
           <div className="flex flex-col items-center min-w-[120px]">
-            <div className="w-full h-3 rounded-md bg-red-700/70 border border-red-500/50 shadow-inner" />
-            <div className="mt-2 text-[11px] font-mono text-slate-200 tracking-wide" data-testid="crr">
+            <div className="w-full h-3 rounded-md bg-red-700/80 border border-red-500/60 shadow-inner" />
+            <div className="mt-2 text-[11px] font-mono text-white/95 tracking-wide" data-testid="crr">
               CRR: <span className="text-white font-bold">{crr}</span>
             </div>
           </div>
           <TeamScoreBlock team={t2} score={s2} batting={batShort === t2.short} align="right" />
         </div>
 
-        {/* Status line (Live · Innings 1, Break, etc.) */}
-        <div className="relative mt-3 text-center text-[11px] uppercase tracking-widest text-slate-300/90">
+        {/* Status line */}
+        <div className="relative mt-3 text-center text-[11px] uppercase tracking-widest text-white/90">
           <ScoreHeadline match={match} />
         </div>
       </div>
 
-      {/* Partnership + last wicket */}
-      {live && (sc.partnership_balls > 0 || sc.last_wicket) && (
-        <div className="px-4 py-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[12px] border-b border-white/5 bg-white/[0.02]" data-testid="scorecard-partnership">
-          <div>
-            <span className="text-slate-400">Partnership: </span>
-            <span className="font-mono text-slate-100 font-semibold">{sc.partnership_runs || 0} ({sc.partnership_balls || 0})</span>
-          </div>
-          {sc.last_wicket && (
+      {/* Green pitch body — partnership / balls / batsmen / bowler all sit on grass */}
+      <div className="relative"
+           style={{
+             background:
+               "linear-gradient(180deg, #14532d 0%, #166534 40%, #1a6b3a 100%)",
+           }}>
+        {/* Pitch stripe illusion */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.12]"
+             style={{
+               backgroundImage:
+                 "repeating-linear-gradient(90deg, rgba(255,255,255,0.10) 0 40px, transparent 40px 80px)",
+             }} />
+
+        {/* Partnership + last wicket */}
+        {live && (sc.partnership_balls > 0 || sc.last_wicket) && (
+          <div className="relative px-4 py-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[12px] border-b border-white/10 text-white" data-testid="scorecard-partnership">
             <div>
-              <span className="text-slate-400">Last Wicket: </span>
-              <span className="font-mono text-slate-100 font-semibold">
-                {sc.last_wicket.name} {sc.last_wicket.runs} ({sc.last_wicket.balls})
-              </span>
+              <span className="text-emerald-100/80">Partnership: </span>
+              <span className="font-mono font-semibold">{sc.partnership_runs || 0} ({sc.partnership_balls || 0})</span>
             </div>
-          )}
+            {sc.last_wicket && (
+              <div>
+                <span className="text-emerald-100/80">Last Wicket: </span>
+                <span className="font-mono font-semibold">
+                  {sc.last_wicket.name} {sc.last_wicket.runs} ({sc.last_wicket.balls})
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Ball-by-ball strip (last 2 overs) */}
+        {live && <OverStrip match={match} />}
+
+        {/* Batsmen table */}
+        {live && match.batters && (
+          <BatsmenTable batters={match.batters} />
+        )}
+
+        {/* Bowler table */}
+        {live && (
+          <BowlerTable scoreEntry={sc} />
+        )}
+
+        {/* Pre-match toss card (on green background) */}
+        {isPre && (
+          <div className="relative px-4 py-4">
+            <TossStage match={match} />
+          </div>
+        )}
+
+        {/* Completed banner */}
+        {match.phase === "completed" && (
+          <div className="relative px-4 py-3 text-center text-yellow-300 font-mono text-sm border-t border-white/10">
+            {match.winner === "TIE" ? "Match tied" : `${match.winner} wins the match!`}
+          </div>
+        )}
+
+        {/* Meta footer */}
+        <div className="relative px-4 py-2 text-[10px] uppercase tracking-widest text-white/70 border-t border-white/10 flex items-center justify-between">
+          <span>{match.format} · {match.league}</span>
+          {match.target ? <span>Target · <span className="text-white font-mono">{match.target}</span></span> : null}
         </div>
-      )}
-
-      {/* Ball-by-ball strip (last 2 overs) */}
-      {live && <OverStrip match={match} />}
-
-      {/* Batsmen table */}
-      {live && match.batters && (
-        <BatsmenTable batters={match.batters} />
-      )}
-
-      {/* Bowler table */}
-      {live && (
-        <BowlerTable scoreEntry={sc} />
-      )}
-
-      {/* Pre-match toss card */}
-      {isPre && (
-        <div className="px-4 pb-4">
-          <TossStage match={match} />
-        </div>
-      )}
-
-      {/* Completed banner */}
-      {match.phase === "completed" && (
-        <div className="px-4 py-3 text-center text-yellow-300 font-mono text-sm border-t border-white/5">
-          {match.winner === "TIE" ? "Match tied" : `${match.winner} wins the match!`}
-        </div>
-      )}
-
-      {/* Meta footer */}
-      <div className="px-4 py-2 text-[10px] uppercase tracking-widest text-slate-500 border-t border-white/5 flex items-center justify-between">
-        <span>{match.format} · {match.league}</span>
-        {match.target ? <span>Target · <span className="text-slate-300 font-mono">{match.target}</span></span> : null}
       </div>
     </div>
   );
@@ -475,14 +491,14 @@ function OverStrip({ match }) {
   if (overNums.length === 0) return null;
 
   return (
-    <div className="px-4 py-3 border-b border-white/5 bg-white/[0.02] overflow-x-auto" data-testid="over-strip">
+    <div className="relative px-4 py-3 border-b border-white/10 overflow-x-auto" data-testid="over-strip">
       <div className="flex items-center gap-4 min-w-min">
         {overNums.map((ov) => {
           // Balls within this over: sort by ball_idx ascending (older first). Backend inserts at 0 so reverse.
           const list = [...buckets[ov]].reverse();
           return (
             <div key={ov} className="flex items-center gap-1.5">
-              <div className="px-2 py-1 rounded-md border border-white/15 bg-white/5 text-xs font-mono text-slate-200">
+              <div className="px-2 py-1 rounded-md border border-white/25 bg-black/30 text-xs font-mono text-white">
                 Over {ov + 1}
               </div>
               {list.map((b, i) => (
@@ -520,10 +536,10 @@ function BatsmenTable({ batters }) {
   const nonStriker = batters?.non_striker;
   const sr = (b) => (b && b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : "—");
   return (
-    <div className="px-4 py-3 border-b border-white/5" data-testid="batsmen-table">
+    <div className="relative px-4 py-3 border-b border-white/10" data-testid="batsmen-table">
       <table className="w-full text-[12px]">
         <thead>
-          <tr className="text-slate-400 text-[10px] uppercase tracking-widest">
+          <tr className="text-emerald-200 text-[10px] uppercase tracking-widest">
             <th className="text-left font-semibold pb-1">Batsmen</th>
             <th className="text-right font-semibold pb-1 w-10">R</th>
             <th className="text-right font-semibold pb-1 w-10">B</th>
@@ -542,10 +558,10 @@ function BatsmenTable({ batters }) {
 
   function BatsmanRow({ b, onStrike = false, testid }) {
     if (!b) return (
-      <tr data-testid={testid}><td colSpan={6} className="py-1 text-slate-500 text-center">—</td></tr>
+      <tr data-testid={testid}><td colSpan={6} className="py-1 text-white/70 text-center">—</td></tr>
     );
     return (
-      <tr className={onStrike ? "text-yellow-200" : "text-slate-100"} data-testid={testid}>
+      <tr className={onStrike ? "text-yellow-200" : "text-white"} data-testid={testid}>
         <td className="py-1 text-left flex items-center gap-1.5">
           {onStrike ? <span className="text-yellow-400" title="On strike">🏏</span> : <span className="w-3.5" />}
           <span className="truncate">{b.name}{b.out ? "*" : ""}</span>
@@ -571,10 +587,10 @@ function BowlerTable({ scoreEntry }) {
   const maidens = bs.maidens || 0;
   const eco = balls > 0 ? ((runs / balls) * 6).toFixed(2) : "—";
   return (
-    <div className="px-4 py-3" data-testid="bowler-table">
+    <div className="relative px-4 py-3" data-testid="bowler-table">
       <table className="w-full text-[12px]">
         <thead>
-          <tr className="text-slate-400 text-[10px] uppercase tracking-widest">
+          <tr className="text-emerald-200 text-[10px] uppercase tracking-widest">
             <th className="text-left font-semibold pb-1">Bowler</th>
             <th className="text-right font-semibold pb-1 w-12">O</th>
             <th className="text-right font-semibold pb-1 w-10">R</th>
@@ -584,9 +600,9 @@ function BowlerTable({ scoreEntry }) {
           </tr>
         </thead>
         <tbody className="font-mono">
-          <tr className="text-slate-100">
+          <tr className="text-white">
             <td className="py-1 text-left flex items-center gap-1.5">
-              <span className="text-red-400">●</span>
+              <span className="text-red-300">●</span>
               <span className="truncate">{bname || "—"}</span>
             </td>
             <td className="text-right py-1">{overs}</td>
