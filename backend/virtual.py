@@ -79,24 +79,90 @@ TEAMS_DOMESTIC = [
 LEAGUE_INTERNATIONAL = "GoWin365 International T20"
 LEAGUE_DOMESTIC      = "GoWin365 Domestic Super League"
 
-# Player pool — realistic, stadium-friendly pseudonyms (no real cricketer names to avoid rights issues)
+# ── Real international squads keyed by team short-code ─────────────
+# Provided by user. Each list has 12 players; we sample 11 per match with
+# rotating batting order so matches don't play identically every time.
+INTL_SQUADS: Dict[str, List[str]] = {
+    "IND": [
+        "Rohit Sharma", "Virat Kohli", "Shubman Gill", "Yashasvi Jaiswal",
+        "KL Rahul", "Rishabh Pant", "Hardik Pandya", "Ravindra Jadeja",
+        "Jasprit Bumrah", "Mohammed Siraj", "Kuldeep Yadav", "Arshdeep Singh",
+    ],
+    "AUS": [
+        "Pat Cummins", "Steve Smith", "Travis Head", "Marnus Labuschagne",
+        "Mitchell Starc", "Josh Hazlewood", "Glenn Maxwell", "Cameron Green",
+        "Mitchell Marsh", "Adam Zampa", "Alex Carey", "Josh Inglis",
+    ],
+    "PAK": [
+        "Babar Azam", "Mohammad Rizwan", "Shaheen Afridi", "Haris Rauf",
+        "Naseem Shah", "Fakhar Zaman", "Imam-ul-Haq", "Saud Shakeel",
+        "Salman Ali Agha", "Abrar Ahmed", "Saim Ayub", "Abdullah Shafique",
+    ],
+    "ENG": [
+        "Joe Root", "Ben Stokes", "Jos Buttler", "Harry Brook",
+        "Phil Salt", "Liam Livingstone", "Jofra Archer", "Mark Wood",
+        "Chris Woakes", "Adil Rashid", "Zak Crawley", "Ollie Pope",
+    ],
+    "NZ": [
+        "Kane Williamson", "Devon Conway", "Tom Latham", "Rachin Ravindra",
+        "Glenn Phillips", "Daryl Mitchell", "Mitchell Santner", "Matt Henry",
+        "Lockie Ferguson", "Kyle Jamieson", "Will Young", "Finn Allen",
+    ],
+    "SA": [
+        "Temba Bavuma", "Aiden Markram", "David Miller", "Heinrich Klaasen",
+        "Tristan Stubbs", "Ryan Rickelton", "Kagiso Rabada", "Marco Jansen",
+        "Keshav Maharaj", "Lungi Ngidi", "Gerald Coetzee", "Wiaan Mulder",
+    ],
+    "SL": [
+        "Pathum Nissanka", "Kusal Mendis", "Charith Asalanka", "Dhananjaya de Silva",
+        "Wanindu Hasaranga", "Maheesh Theekshana", "Dasun Shanaka", "Kamindu Mendis",
+        "Matheesha Pathirana", "Dilshan Madushanka", "Avishka Fernando", "Dinesh Chandimal",
+    ],
+    "BAN": [
+        "Shakib Al Hasan", "Litton Das", "Najmul Hossain Shanto", "Mushfiqur Rahim",
+        "Mehidy Hasan Miraz", "Taskin Ahmed", "Mustafizur Rahman", "Towhid Hridoy",
+        "Hasan Mahmud", "Tanzid Hasan", "Mahmudullah", "Tanzim Hasan Sakib",
+    ],
+    "AFG": [
+        "Rashid Khan", "Mohammad Nabi", "Rahmanullah Gurbaz", "Ibrahim Zadran",
+        "Azmatullah Omarzai", "Naveen-ul-Haq", "Fazalhaq Farooqi", "Noor Ahmad",
+        "Mujeeb Ur Rahman", "Gulbadin Naib", "Rahmat Shah", "Hashmatullah Shahidi",
+    ],
+    "WI": [
+        "Shai Hope", "Nicholas Pooran", "Brandon King", "Rovman Powell",
+        "Sherfane Rutherford", "Romario Shepherd", "Jason Holder", "Alzarri Joseph",
+        "Gudakesh Motie", "Alick Athanaze", "Roston Chase", "Justin Greaves",
+    ],
+}
+
+# Domestic (Ranji-style) — keep procedurally generated pseudonyms since no roster
+# was supplied for domestic teams.
 _PLAYER_FIRSTS = [
     "R.", "V.", "S.", "M.", "K.", "A.", "J.", "H.", "P.", "N.", "D.", "T.",
     "B.", "L.", "Y.", "G.", "I.", "O.",
 ]
 _PLAYER_LASTS = [
-    "Sharma", "Patel", "Khan", "Verma", "Iyer", "Kumar", "Singh", "Yadav",
-    "Rathi", "Chandra", "Rao", "Menon", "Naidu", "Malik", "Basu", "Sethi",
-    "Bose", "Nayak", "Dutta", "Joshi", "Chowdhury", "Prasad",
-    "Smith", "Anderson", "Cooper", "Fraser", "Miller", "Wright",
-    "Barlow", "Nelson", "Palmer", "Roberts", "Perez", "Silva", "Diaz",
+    "Sharma", "Patel", "Verma", "Iyer", "Kumar", "Rathi", "Chandra", "Rao",
+    "Menon", "Naidu", "Basu", "Sethi", "Bose", "Nayak", "Dutta", "Joshi",
+    "Chowdhury", "Prasad", "Deshmukh", "Pillai",
 ]
 
 def _make_players(team_short: str) -> List[Dict[str, Any]]:
-    """Deterministic-per-team 11-man squad (sampled fresh each match to keep it lively)."""
-    firsts = random.sample(_PLAYER_FIRSTS, 11)
-    lasts  = random.sample(_PLAYER_LASTS, 11)
-    return [{"name": f"{firsts[i]} {lasts[i]}", "runs": 0, "balls": 0, "fours": 0, "sixes": 0, "out": False, "team": team_short} for i in range(11)]
+    """11-man squad for a match.
+
+    • For internationals, sample 11 from the team's real 12-man roster and
+      shuffle the batting order so different matches feel different.
+    • For domestic teams (no real roster provided), keep the procedurally
+      generated Indian-style pseudonyms.
+    """
+    roster = INTL_SQUADS.get(team_short)
+    if roster:
+        names = random.sample(roster, 11)   # take 11, drop one, shuffle order
+    else:
+        firsts = random.sample(_PLAYER_FIRSTS, 11)
+        lasts  = random.sample(_PLAYER_LASTS, 11)
+        names = [f"{firsts[i]} {lasts[i]}" for i in range(11)]
+    return [{"name": n, "runs": 0, "balls": 0, "fours": 0, "sixes": 0, "out": False, "team": team_short} for n in names]
 
 # ────────── House bias (admin-adjustable at runtime) ──────────────
 # "normal"     : ~5% margin baked into odds (fair-ish)
