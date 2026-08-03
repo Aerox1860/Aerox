@@ -339,13 +339,13 @@ function Scoreboard({ match }) {
       <div aria-hidden className="absolute inset-0 z-0 bg-black/25" />
 
       {/* ── Header: Team scores + CRR bar over the stadium band ─────── */}
-      <div className="relative z-10 px-4 pt-3 pb-4">
-        <div className="flex items-center justify-between gap-3 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.65)]">
+      <div className="relative z-10 px-3 pt-2 pb-2.5">
+        <div className="flex items-center justify-between gap-2 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.65)]">
           <TeamScoreBlock team={t1} score={s1} batting={batShort === t1.short} align="left" />
           {/* Middle CRR bar */}
-          <div className="flex flex-col items-center min-w-[120px]">
-            <div className="w-full h-3 rounded-md bg-red-700/90 border border-red-500/60 shadow-inner" />
-            <div className="mt-2 text-[11px] font-mono text-white tracking-wide" data-testid="crr">
+          <div className="flex flex-col items-center min-w-[100px]">
+            <div className="w-full h-2.5 rounded-md bg-red-700/90 border border-red-500/60 shadow-inner" />
+            <div className="mt-1 text-[10px] font-mono text-white tracking-wide" data-testid="crr">
               CRR: <span className="text-white font-bold">{crr}</span>
             </div>
           </div>
@@ -353,7 +353,7 @@ function Scoreboard({ match }) {
         </div>
 
         {/* Status line */}
-        <div className="mt-3 text-center text-[11px] uppercase tracking-widest text-white/95 drop-shadow-[0_2px_3px_rgba(0,0,0,0.7)]">
+        <div className="mt-1.5 text-center text-[10px] uppercase tracking-widest text-white/95 drop-shadow-[0_2px_3px_rgba(0,0,0,0.7)]">
           <ScoreHeadline match={match} />
         </div>
       </div>
@@ -362,7 +362,7 @@ function Scoreboard({ match }) {
       <div className="relative z-10">
         {/* Partnership + last wicket */}
         {live && (sc.partnership_balls > 0 || sc.last_wicket) && (
-          <div className="px-4 py-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[12px] border-b border-white/15 text-white bg-black/40 backdrop-blur-[2px]" data-testid="scorecard-partnership">
+          <div className="px-3 py-1.5 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[11px] border-b border-white/15 text-white bg-black/40 backdrop-blur-[2px]" data-testid="scorecard-partnership">
             <div>
               <span className="text-emerald-100">Partnership: </span>
               <span className="font-mono font-semibold">{sc.partnership_runs || 0} ({sc.partnership_balls || 0})</span>
@@ -406,7 +406,7 @@ function Scoreboard({ match }) {
         )}
 
         {/* Meta footer */}
-        <div className="px-4 py-2 text-[10px] uppercase tracking-widest text-white/85 border-t border-white/15 flex items-center justify-between bg-black/50">
+        <div className="px-3 py-1 text-[9px] uppercase tracking-widest text-white/85 border-t border-white/15 flex items-center justify-between bg-black/50">
           <span>{match.format} · {match.league}</span>
           {match.target ? <span>Target · <span className="text-white font-mono">{match.target}</span></span> : null}
         </div>
@@ -420,16 +420,16 @@ function TeamScoreBlock({ team, score, batting, align }) {
   const right = align === "right";
   return (
     <div className={`flex-1 min-w-0 flex flex-col ${right ? "items-end text-right" : "items-start text-left"}`} data-testid={`team-block-${team.short}`}>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1">
         {!right && <TeamDot color={team.color} />}
-        <span className={`font-heading font-black text-2xl sm:text-3xl leading-none ${batting ? "text-white" : "text-slate-400"}`}>
+        <span className={`font-heading font-black text-xl sm:text-2xl leading-none ${batting ? "text-white" : "text-slate-400"}`}>
           {team.short}
         </span>
         {right && <TeamDot color={team.color} />}
       </div>
-      <div className={`mt-1 font-mono ${batting ? "text-white" : "text-slate-500"}`}>
-        <span className="text-xl sm:text-2xl font-black">{score.runs ?? 0}/{score.wickets ?? 0}</span>
-        <span className="text-xs sm:text-sm ml-1 opacity-80">({score.overs_str ?? "0.0"})</span>
+      <div className={`mt-0.5 font-mono ${batting ? "text-white" : "text-slate-500"}`}>
+        <span className="text-lg sm:text-xl font-black">{score.runs ?? 0}/{score.wickets ?? 0}</span>
+        <span className="text-[11px] sm:text-xs ml-1 opacity-80">({score.overs_str ?? "0.0"})</span>
       </div>
     </div>
   );
@@ -487,14 +487,14 @@ function OverStrip({ match }) {
   if (overNums.length === 0) return null;
 
   return (
-    <div className="relative px-4 py-3 border-b border-white/10 overflow-x-auto" data-testid="over-strip">
-      <div className="flex items-center gap-4 min-w-min">
+    <div className="relative px-3 py-2 border-b border-white/10 overflow-x-auto" data-testid="over-strip">
+      <div className="flex items-center gap-3 min-w-min">
         {overNums.map((ov) => {
           // Balls within this over: sort by ball_idx ascending (older first). Backend inserts at 0 so reverse.
           const list = [...buckets[ov]].reverse();
           return (
-            <div key={ov} className="flex items-center gap-1.5">
-              <div className="px-2 py-1 rounded-md border border-white/25 bg-black/30 text-xs font-mono text-white">
+            <div key={ov} className="flex items-center gap-1">
+              <div className="px-1.5 py-0.5 rounded-md border border-white/25 bg-black/30 text-[10px] font-mono text-white">
                 Over {ov + 1}
               </div>
               {list.map((b, i) => (
@@ -520,7 +520,7 @@ function BallDot({ outcome }) {
   };
   const cls = styles[outcome] || styles["0"];
   return (
-    <div className={`w-7 h-7 rounded-full grid place-items-center text-[11px] font-mono font-bold border ${cls}`}>
+    <div className={`w-6 h-6 rounded-full grid place-items-center text-[10px] font-mono font-bold border ${cls}`}>
       {outcome}
     </div>
   );
@@ -532,16 +532,16 @@ function BatsmenTable({ batters }) {
   const nonStriker = batters?.non_striker;
   const sr = (b) => (b && b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : "—");
   return (
-    <div className="relative px-4 py-3 border-b border-white/10" data-testid="batsmen-table">
-      <table className="w-full text-[12px]">
+    <div className="relative px-3 py-2 border-b border-white/10" data-testid="batsmen-table">
+      <table className="w-full text-[11px]">
         <thead>
-          <tr className="text-emerald-200 text-[10px] uppercase tracking-widest">
-            <th className="text-left font-semibold pb-1">Batsmen</th>
-            <th className="text-right font-semibold pb-1 w-10">R</th>
-            <th className="text-right font-semibold pb-1 w-10">B</th>
-            <th className="text-right font-semibold pb-1 w-10">4s</th>
-            <th className="text-right font-semibold pb-1 w-10">6s</th>
-            <th className="text-right font-semibold pb-1 w-14">SR</th>
+          <tr className="text-emerald-200 text-[9px] uppercase tracking-widest">
+            <th className="text-left font-semibold pb-0.5">Batsmen</th>
+            <th className="text-right font-semibold pb-0.5 w-9">R</th>
+            <th className="text-right font-semibold pb-0.5 w-9">B</th>
+            <th className="text-right font-semibold pb-0.5 w-9">4s</th>
+            <th className="text-right font-semibold pb-0.5 w-9">6s</th>
+            <th className="text-right font-semibold pb-0.5 w-12">SR</th>
           </tr>
         </thead>
         <tbody className="font-mono">
@@ -554,19 +554,19 @@ function BatsmenTable({ batters }) {
 
   function BatsmanRow({ b, onStrike = false, testid }) {
     if (!b) return (
-      <tr data-testid={testid}><td colSpan={6} className="py-1 text-white/70 text-center">—</td></tr>
+      <tr data-testid={testid}><td colSpan={6} className="py-0.5 text-white/70 text-center">—</td></tr>
     );
     return (
       <tr className={onStrike ? "text-yellow-200" : "text-white"} data-testid={testid}>
-        <td className="py-1 text-left flex items-center gap-1.5">
-          {onStrike ? <span className="text-yellow-400" title="On strike">🏏</span> : <span className="w-3.5" />}
+        <td className="py-0.5 text-left flex items-center gap-1">
+          {onStrike ? <span className="text-yellow-400" title="On strike">🏏</span> : <span className="w-3" />}
           <span className="truncate">{b.name}{b.out ? "*" : ""}</span>
         </td>
-        <td className="text-right py-1 font-bold">{b.runs}</td>
-        <td className="text-right py-1">{b.balls}</td>
-        <td className="text-right py-1">{b.fours}</td>
-        <td className="text-right py-1">{b.sixes}</td>
-        <td className="text-right py-1">{sr(b)}</td>
+        <td className="text-right py-0.5 font-bold">{b.runs}</td>
+        <td className="text-right py-0.5">{b.balls}</td>
+        <td className="text-right py-0.5">{b.fours}</td>
+        <td className="text-right py-0.5">{b.sixes}</td>
+        <td className="text-right py-0.5">{sr(b)}</td>
       </tr>
     );
   }
@@ -583,29 +583,29 @@ function BowlerTable({ scoreEntry }) {
   const maidens = bs.maidens || 0;
   const eco = balls > 0 ? ((runs / balls) * 6).toFixed(2) : "—";
   return (
-    <div className="relative px-4 py-3" data-testid="bowler-table">
-      <table className="w-full text-[12px]">
+    <div className="relative px-3 py-2" data-testid="bowler-table">
+      <table className="w-full text-[11px]">
         <thead>
-          <tr className="text-emerald-200 text-[10px] uppercase tracking-widest">
-            <th className="text-left font-semibold pb-1">Bowler</th>
-            <th className="text-right font-semibold pb-1 w-12">O</th>
-            <th className="text-right font-semibold pb-1 w-10">R</th>
-            <th className="text-right font-semibold pb-1 w-10">M</th>
-            <th className="text-right font-semibold pb-1 w-10">W</th>
-            <th className="text-right font-semibold pb-1 w-14">Eco</th>
+          <tr className="text-emerald-200 text-[9px] uppercase tracking-widest">
+            <th className="text-left font-semibold pb-0.5">Bowler</th>
+            <th className="text-right font-semibold pb-0.5 w-11">O</th>
+            <th className="text-right font-semibold pb-0.5 w-9">R</th>
+            <th className="text-right font-semibold pb-0.5 w-9">M</th>
+            <th className="text-right font-semibold pb-0.5 w-9">W</th>
+            <th className="text-right font-semibold pb-0.5 w-12">Eco</th>
           </tr>
         </thead>
         <tbody className="font-mono">
           <tr className="text-white">
-            <td className="py-1 text-left flex items-center gap-1.5">
+            <td className="py-0.5 text-left flex items-center gap-1">
               <span className="text-red-300">●</span>
               <span className="truncate">{bname || "—"}</span>
             </td>
-            <td className="text-right py-1">{overs}</td>
-            <td className="text-right py-1">{runs}</td>
-            <td className="text-right py-1">{maidens}</td>
-            <td className="text-right py-1 font-bold">{wkts}</td>
-            <td className="text-right py-1">{eco}</td>
+            <td className="text-right py-0.5">{overs}</td>
+            <td className="text-right py-0.5">{runs}</td>
+            <td className="text-right py-0.5">{maidens}</td>
+            <td className="text-right py-0.5 font-bold">{wkts}</td>
+            <td className="text-right py-0.5">{eco}</td>
           </tr>
         </tbody>
       </table>
