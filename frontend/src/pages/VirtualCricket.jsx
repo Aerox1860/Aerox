@@ -323,7 +323,9 @@ function Scoreboard({ match }) {
   const STADIUM_BG = "https://customer-assets-lxgj4vgw.emergentagent.net/job_aerox-wallet/artifacts/wi3juzsp_image.png";
   return (
     <div className="card-surface p-0 overflow-hidden border-emerald-500/25 shadow-[0_0_40px_rgba(16,185,129,0.10)] relative" data-testid="scorecard">
-      {/* ── Actual stadium reference image as full-card backdrop ─── */}
+      {/* ── Stadium reference image — heavily blurred so ONLY the sky & pitch colours ─
+             show through. The original WI/PAK/Justin Greaves scorecard text is completely
+             obliterated by the 24px blur + brightness tweak. ────────────── */}
       <div
         aria-hidden
         className="absolute inset-0 z-0"
@@ -332,12 +334,14 @@ function Scoreboard({ match }) {
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
-          filter: "blur(6px) saturate(1.1)",
-          transform: "scale(1.08)",   // hide blur edges
+          filter: "blur(24px) saturate(1.25) brightness(0.75)",
+          transform: "scale(1.25)",   // hide blur edges
         }}
       />
-      {/* Dark tint to make our overlaid data legible while preserving the stadium/pitch colours */}
-      <div aria-hidden className="absolute inset-0 z-0 bg-black/55" />
+      {/* Uniform dark tint to guarantee our text is always the sharpest thing on screen */}
+      <div aria-hidden className="absolute inset-0 z-0 bg-black/45" />
+      {/* Extra dark band across the middle so no ghost of the original card leaks through */}
+      <div aria-hidden className="absolute inset-x-0 top-[38%] bottom-[10%] z-0 bg-black/30" />
 
       {/* ── Header: Team scores + CRR bar over the stadium band ─────── */}
       <div className="relative z-10 px-4 pt-3 pb-4">
