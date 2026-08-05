@@ -535,19 +535,21 @@ async def get_my_limit(user: dict = Depends(current_user)):
 
 @api.post("/limits/set")
 async def set_my_limit(body: LimitIn, user: dict = Depends(current_user)):
-    """Users set (or modify) their own deposit ceiling.
+    """Users set their deposit ceiling ONCE.
 
-    Once used ≥ amount, the limit is LOCKED — user must contact support
-    and admin resets before they can set a new one.
+    After the first set, the limit is immutable from the user side — they
+    must contact admin to reset it. This is a stricter responsible-gambling
+    posture: users can't quietly raise their own cap.
     """
     existing = user.get("deposit_limit") or {}
-    used = float(existing.get("used", 0) or 0)
-    cap  = float(existing.get("amount") or 0)
-    if existing.get("amount") is not None and used >= cap:
-        raise HTTPException(status_code=403, detail="Limit reached and locked. Contact support to reset.")
+    if existing.get("amount") is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="A deposit limit is already active. Contact support/admin to reset it before setting a new one.",
+        )
     await db.users.update_one({"id": user["id"]}, {"$set": {"deposit_limit": {
         "amount": round(float(body.amount), 2),
-        "used":   used,     # preserve existing usage
+        "used":   0.0,
         "set_at": iso(now_utc()),
     }}})
     updated = await db.users.find_one({"id": user["id"]})
@@ -555,14 +557,11 @@ async def set_my_limit(body: LimitIn, user: dict = Depends(current_user)):
 
 @api.delete("/limits/me")
 async def remove_my_limit(user: dict = Depends(current_user)):
-    """User can REMOVE their limit only if it hasn't been reached yet."""
-    existing = user.get("deposit_limit") or {}
-    used = float(existing.get("used", 0) or 0)
-    cap  = float(existing.get("amount") or 0)
-    if existing.get("amount") is not None and used >= cap:
-        raise HTTPException(status_code=403, detail="Limit locked. Contact support to reset.")
-    await db.users.update_one({"id": user["id"]}, {"$unset": {"deposit_limit": ""}})
-    return {"ok": True}
+    """User CANNOT remove their own limit — only admin can reset it."""
+    raise HTTPException(
+        status_code=403,
+        detail="Only admin can reset a deposit limit. Please contact support.",
+    )
 
 @api.post("/admin/limits/{user_id}/reset")
 async def admin_reset_limit(user_id: str, _: dict = Depends(admin_only)):
