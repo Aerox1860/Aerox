@@ -124,16 +124,25 @@ function MatchTableRow({ match, tick, seed }) {
   const day  = time ? time.toLocaleDateString(undefined, { weekday: "short" }) : "Today";
   const hh   = time ? time.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "—";
 
+  // Show status: RAIN if admin-flagged, LIVE only when start-time passed, else TODAY.
+  const now = Date.now();
+  const started = !time || time.getTime() <= now;
+  const status = match.rain_delay ? "rain" : started ? "live" : "today";
+  const badge =
+    status === "rain" ? { label: "Rain Delay", tone: "bg-sky-500 text-white animate-pulse" } :
+    status === "live" ? { label: "Live",       tone: "bg-red-500 text-white" } :
+                        { label: "Today",      tone: "bg-amber-500 text-white" };
+
   return (
     <Link
       to={`/in-play`}
       data-testid={`row-${match.id}`}
       className="grid grid-cols-[54px_1fr_auto] items-center gap-2 px-2 py-2 hover:bg-slate-50 active:bg-slate-100"
     >
-      {/* Column 1: time + LIVE flag */}
+      {/* Column 1: time + status */}
       <div className="text-[11px] text-slate-700 leading-tight">
         <div className="inline-flex items-center gap-1">
-          <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-red-500 text-white uppercase tracking-widest">Live</span>
+          <span className={`text-[9px] font-bold px-1 py-0.5 rounded uppercase tracking-widest ${badge.tone}`}>{badge.label}</span>
         </div>
         <div className="mt-0.5 text-[11px] font-semibold text-slate-500">{day}</div>
         <div className="text-[11px] font-bold text-slate-900">{hh}</div>

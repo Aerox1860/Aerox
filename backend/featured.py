@@ -52,6 +52,7 @@ class MatchIn(BaseModel):
     odds_team2_lay:  Optional[float] = None
     odds_draw:       Optional[float] = None
     is_live: bool = True
+    rain_delay: bool = False
     tournament: Optional[str] = None    # e.g. "IPL 2026"
 
 
@@ -69,13 +70,18 @@ class MatchOut(BaseModel):
     odds_team2_lay:  Optional[float]
     odds_draw:       Optional[float]
     is_live: bool
+    rain_delay: bool = False
     tournament: Optional[str]
     created_at: str
     updated_at: str
 
 
 def _row_to_out(r: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: r.get(k) for k in MatchOut.model_fields.keys()}
+    out = {k: r.get(k) for k in MatchOut.model_fields.keys()}
+    # Boolean defaults — coerce missing/None values so pydantic validates OK.
+    out["is_live"]    = bool(out.get("is_live"))
+    out["rain_delay"] = bool(out.get("rain_delay"))
+    return out
 
 
 # ── Router: /api/featured/... and /api/admin/featured/... ────────
@@ -142,6 +148,16 @@ def make_public_router(current_user_dep, admin_only_dep) -> APIRouter:
         new_live = not row.get("is_live", False)
         await COL.update_one({"id": match_id}, {"$set": {"is_live": new_live, "updated_at": _now_iso()}})
         row["is_live"] = new_live
+        return _row_to_out(row)
+
+    @r.post("/admin/featured/matches/{match_id}/toggle-rain")
+    async def admin_toggle_rain(match_id: str, _: dict = Depends(admin_only_dep)):
+        row = await COL.find_one({"id": match_id})
+        if not row:
+            raise HTTPException(404, "Match not found")
+        new_rain = not row.get("rain_delay", False)
+        await COL.update_one({"id": match_id}, {"$set": {"rain_delay": new_rain, "updated_at": _now_iso()}})
+        row["rain_delay"] = new_rain
         return _row_to_out(row)
 
     return r

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Radio, Sparkles, Trophy, Plus, Trash2, ToggleLeft, ToggleRight, Save } from "lucide-react";
+import { Radio, Sparkles, Trophy, Plus, Trash2, ToggleLeft, ToggleRight, Save, CloudRain } from "lucide-react";
 
 const SPORT_OPTIONS = [
   { key: "cricket",       label: "Cricket",       icon: Radio },
@@ -125,6 +125,16 @@ export default function AdminMatches() {
     }
   };
 
+  const toggleRain = async (id) => {
+    try {
+      const { data } = await api.post(`/admin/featured/matches/${id}/toggle-rain`);
+      toast.success(data.rain_delay ? "Rain delay ON — visible to users" : "Rain delay cleared");
+      refresh();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Toggle failed");
+    }
+  };
+
   return (
     <div className="space-y-6" data-testid="admin-matches-page">
       <div>
@@ -236,6 +246,9 @@ export default function AdminMatches() {
                   <button onClick={() => toggleLive(m.id)} title="Toggle live" className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 ${m.is_live ? "bg-emerald-500/15 text-emerald-300 border border-emerald-400/25" : "bg-slate-500/10 text-slate-400 border border-slate-500/20"}`} data-testid={`toggle-${m.id}`}>
                     {m.is_live ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
                     {m.is_live ? "Live" : "Off"}
+                  </button>
+                  <button onClick={() => toggleRain(m.id)} title="Toggle rain delay" className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 ${m.rain_delay ? "bg-sky-500/20 text-sky-200 border border-sky-400/40" : "bg-slate-500/10 text-slate-400 border border-slate-500/20"}`} data-testid={`toggle-rain-${m.id}`}>
+                    <CloudRain className="w-3.5 h-3.5" /> {m.rain_delay ? "Rain On" : "Rain"}
                   </button>
                   <button onClick={() => edit(m)} className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 text-xs" data-testid={`edit-${m.id}`}>
                     Edit
