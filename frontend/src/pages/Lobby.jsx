@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Radio, Zap, Dices, Sparkles, Trophy, Gift, Plane,
+  Radio, Zap, Dices, Sparkles, Trophy, Plane,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { useAuth } from "@/context/AuthContext";
-import { toast } from "sonner";
 
 /**
  * White-body lobby (govinda365-style). Now:
@@ -54,7 +52,6 @@ const GAME_TILES = [
 ];
 
 export default function Lobby() {
-  const { user, refresh } = useAuth();
   const [activeSub, setActiveSub] = useState("popular");
   const [featured, setFeatured] = useState([]);
   const [tick, setTick] = useState(0);
@@ -72,17 +69,6 @@ export default function Lobby() {
     const j = setInterval(() => setTick((n) => n + 1), 2000);
     return () => { mounted = false; clearInterval(t); clearInterval(j); };
   }, []);
-
-  const claimDaily = async () => {
-    try {
-      const { data } = await api.post("/auth/daily-bonus");
-      const gained = parseFloat(data.user.balance) - parseFloat(user.balance);
-      toast.success(`Daily bonus credited: ₹${Math.max(0, gained).toFixed(0)}`);
-      refresh();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || "Already claimed today");
-    }
-  };
 
   return (
     <div className="bg-white text-slate-900 min-h-screen w-full" data-testid="lobby-white">
@@ -135,35 +121,6 @@ export default function Lobby() {
           <MarqueeRow duration="45s" testid="games-marquee" gap="gap-3">
             {GAME_TILES.map((g) => <GameTile key={g.id} {...g} />)}
           </MarqueeRow>
-        </section>
-
-        {/* ── Fantasy strip ─────────────────────────────────────────── */}
-        <section data-testid="fantasy-strip" className="px-4">
-          <SectionHeader title="Fantasy Sports" flush />
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <FantasyChip icon={Radio}    label="Cricket 11"   to="/virtual"      tone="bg-emerald-500 text-white" />
-            <FantasyChip icon={Sparkles} label="Football 11"  to="/football"     tone="bg-cyan-500 text-white" />
-            <FantasyChip icon={Trophy}   label="Horse Racing" to="/horse-racing" tone="bg-amber-500 text-white" />
-            <FantasyChip icon={Dices}    label="More"         to="/games"        tone="bg-slate-800 text-white" />
-          </div>
-        </section>
-
-        {/* ── Daily bonus ───────────────────────────────────────────── */}
-        <section className="mx-4 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 p-4 flex items-center gap-3" data-testid="daily-bonus-card">
-          <div className="w-10 h-10 rounded-lg bg-amber-400 grid place-items-center shrink-0 shadow-md">
-            <Gift className="w-5 h-5 text-white" strokeWidth={2.5} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold text-slate-900">Daily bonus</div>
-            <div className="text-xs text-slate-600 truncate">Claim ₹10 free every 24 hours — no deposit needed.</div>
-          </div>
-          <button
-            onClick={claimDaily}
-            data-testid="claim-bonus-btn"
-            className="px-4 py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md hover:shadow-lg shrink-0"
-          >
-            Claim
-          </button>
         </section>
 
         {/* ── In-Play list ──────────────────────────────────────────── */}
@@ -235,18 +192,8 @@ function GameTile({ title, subtitle, to, tint, icon: Icon, soon }) {
   return to ? <Link to={to}>{inner}</Link> : <div>{inner}</div>;
 }
 
-function FantasyChip({ icon: Icon, label, to, tone }) {
-  return (
-    <Link
-      to={to}
-      className={`flex items-center gap-2 px-3 py-3 rounded-xl shadow-sm hover:shadow-md transition-shadow ${tone}`}
-      data-testid={`fantasy-chip-${label.toLowerCase().replace(/\s+/g,"-")}`}
-    >
-      <Icon className="w-5 h-5" strokeWidth={2} />
-      <span className="text-sm font-semibold">{label}</span>
-    </Link>
-  );
-}
+function FantasyChip_Removed() { return null; }
+export { FantasyChip_Removed as _fantasyChipUnused };
 
 /* ── Compact In-Play row (mirrors the /in-play page layout) ────── */
 
