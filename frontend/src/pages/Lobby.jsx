@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Radio, Zap, Dices, Sparkles, Trophy, Gift, Plane, Clock,
+  Radio, Zap, Dices, Sparkles, Trophy, Gift, Plane,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -57,6 +57,7 @@ export default function Lobby() {
   const { user, refresh } = useAuth();
   const [activeSub, setActiveSub] = useState("popular");
   const [featured, setFeatured] = useState([]);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -68,7 +69,8 @@ export default function Lobby() {
     };
     load();
     const t = setInterval(load, 15000);
-    return () => { mounted = false; clearInterval(t); };
+    const j = setInterval(() => setTick((n) => n + 1), 2000);
+    return () => { mounted = false; clearInterval(t); clearInterval(j); };
   }, []);
 
   const claimDaily = async () => {
@@ -178,7 +180,7 @@ export default function Lobby() {
             </div>
           ) : (
             <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-              {featured.map((m) => <MatchRow key={m.id} m={m} />)}
+              {featured.map((m, i) => <CompactMatchRow key={m.id} match={m} tick={tick} seed={i + 1} />)}
             </div>
           )}
         </section>
@@ -246,41 +248,97 @@ function FantasyChip({ icon: Icon, label, to, tone }) {
   );
 }
 
-function MatchRow({ m }) {
-  const time = m.match_time ? new Date(m.match_time) : null;
-  const timeStr = time ? time.toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : "TBA";
+/* ── Compact In-Play row (mirrors the /in-play page layout) ────── */
+
+const JITTER_MAX = 0.06;
+const jitter = (v) => {
+  if (v == null) return null;
+  const d = (Math.random() - 0.5) * 2 * JITTER_MAX;
+  return Math.max(1.01, +(v + d).toFixed(2));
+};
+const pseudoVol = (seed, tick) => (((seed * 9301 + tick * 49297) % 20000) + 500);
+const formatVol = (v) => (v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}K` : String(v));
+
+function ColHeaderTiny({ label, tone }) {
+  return <div className={`w-[62px] sm:w-[70px] text-center py-0.5 rounded-md text-[9px] font-bold ${tone}`}>{label}</div>;
+}
+
+function CompactMatchRow({ match, tick, seed }) {
+  const mo_back = jitter(match.odds_team1_back);
+  const mo_lay  = jitter(match.odds_team1_lay);
+  const bm_back = jitter(match.odds_team2_back);
+  const bm_lay  = jitter(match.odds_team2_lay);
+  const f_back  = jitter(match.odds_draw);
+  const time = match.match_time ? new Date(match.match_time) : null;
+  const day  = time ? time.toLocaleDateString(undefined, { weekday: "short" }) : "Today";
+  const hh   = time ? time.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "—";
+
   return (
-    <Link to="/in-play" className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 hover:bg-slate-50" data-testid={`match-row-${m.id}`}>
-      <div className="min-w-0">
-        <div className="font-semibold text-slate-900 text-sm truncate">
-          {m.team1_name} <span className="text-slate-400">vs</span> {m.team2_name}
-        </div>
-        <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5 flex-wrap">
-          {m.tournament && <span className="truncate">{m.tournament}</span>}
-          <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {timeStr}</span>
-          {m.is_live && <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />LIVE</span>}
-        </div>
+    <Link
+      to="/in-play"
+      data-testid={`match-row-${match.id}`}
+      className="grid grid-cols-[48px_1fr_auto] items-center gap-2 px-2 py-2 hover:bg-slate-50 active:bg-slate-100"
+    >
+      {/* Column 1: time */}
+      <div className="text-[10.5px] leading-tight">
+        <span className="text-[8.5px] font-bold px-1 py-0.5 rounded bg-red-500 text-white uppercase tracking-widest">Live</span>
+        <div className="mt-0.5 text-slate-500 font-semibold">{day}</div>
+        <div className="font-bold text-slate-900">{hh}</div>
       </div>
-      <div className="flex items-center gap-1.5 shrink-0">
-        <OddsCell back={m.odds_team1_back} lay={m.odds_team1_lay} />
-        <OddsCell back={m.odds_team2_back} lay={m.odds_team2_lay} />
-        <OddsCell back={m.odds_draw} single />
+
+      {/* Column 2: teams + tags */}
+      <div className="min-w-0">
+        <div className="flex items-center gap-1 flex-wrap">
+          <TinyPill label="MO" tone="bg-emerald-500 text-white" />
+          <TinyPill label="BM" tone="bg-sky-500 text-white" />
+          <TinyPill label="F"  tone="bg-orange-500 text-white" />
+          <TinyPill label="▶"  tone="bg-slate-900 text-white" />
+        </div>
+        <div className="text-[12px] font-semibold text-slate-900 leading-tight mt-0.5 truncate">{match.team1_name}</div>
+        <div className="text-[12px] font-semibold text-slate-900 leading-tight truncate">{match.team2_name}</div>
+        {match.tournament && (
+          <div className="text-[9.5px] text-slate-500 truncate">{match.tournament}</div>
+        )}
+      </div>
+
+      {/* Column 3: odds */}
+      <div className="flex items-center gap-0.5">
+        <CompactOddsPair back={mo_back} lay={mo_lay} vol={pseudoVol(seed * 3,     tick)} />
+        <CompactOddsPair back={bm_back} lay={bm_lay} vol={pseudoVol(seed * 3 + 1, tick)} />
+        <CompactOddsPair back={f_back}  lay={null}    vol={pseudoVol(seed * 3 + 2, tick)} single />
       </div>
     </Link>
   );
 }
 
-function OddsCell({ back, lay, single }) {
-  const fmt = (v) => (v == null ? "-" : Number(v).toFixed(2));
-  if (single) {
-    return (
-      <div className="w-12 h-9 rounded bg-slate-100 grid place-items-center text-xs font-bold text-slate-700">{fmt(back)}</div>
-    );
-  }
+function TinyPill({ label, tone }) {
+  return <span className={`inline-block px-1 py-[1px] rounded text-[8px] font-bold uppercase tracking-widest ${tone}`}>{label}</span>;
+}
+
+function CompactOddsPair({ back, lay, vol, single }) {
   return (
-    <div className="flex gap-0.5">
-      <div className="w-10 h-9 rounded-l bg-blue-500 grid place-items-center text-[11px] font-bold text-white">{fmt(back)}</div>
-      <div className="w-10 h-9 rounded-r bg-pink-500 grid place-items-center text-[11px] font-bold text-white">{fmt(lay)}</div>
+    <div className="flex gap-[1px]">
+      <CompactOddsCell value={back} tone="blue" vol={vol} />
+      {!single && <CompactOddsCell value={lay} tone="pink" vol={vol + 250} />}
+      {single && <CompactOddsCell value={null} tone="blue" vol={null} placeholder />}
+    </div>
+  );
+}
+
+function CompactOddsCell({ value, tone, vol, placeholder }) {
+  const empty = value == null;
+  const bg = empty
+    ? "bg-slate-100 text-slate-400 border-slate-200"
+    : tone === "blue"
+    ? "bg-blue-100 text-blue-800 border-blue-200"
+    : "bg-pink-100 text-pink-800 border-pink-200";
+  return (
+    <div className={`w-[28px] sm:w-[34px] h-[38px] rounded border ${bg} px-0.5 py-0.5 flex flex-col items-center justify-center`}>
+      <div className={`text-[10.5px] font-bold leading-none ${empty ? "opacity-70" : ""}`}>{empty ? "-" : value.toFixed(2)}</div>
+      {!empty && vol != null && (
+        <div className="text-[8px] mt-0.5 leading-none opacity-70 font-mono">{formatVol(vol)}</div>
+      )}
+      {placeholder && <div className="text-[8px] opacity-0">-</div>}
     </div>
   );
 }
