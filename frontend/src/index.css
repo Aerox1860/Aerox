@@ -153,3 +153,15 @@ body {
 /* Utility: hide horizontal scrollbar (used by Lobby carousels). */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Auto-marquee for lobby carousels — endless left-scroll of game cards. */
+@keyframes marquee-left {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }   /* We render the list twice, so 50% == one full cycle */
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-left var(--marquee-duration, 30s) linear infinite;
+}
+.marquee-track:hover { animation-play-state: paused; }

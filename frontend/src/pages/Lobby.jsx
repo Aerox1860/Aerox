@@ -1,64 +1,63 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Radio, Zap, Dices, Sparkles, Trophy, Gift, Plane, ChevronLeft, ChevronRight, Clock
+  Radio, Zap, Dices, Sparkles, Trophy, Gift, Plane, Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 /**
- * Redesigned Lobby dashboard inspired by the reference (govinda365-style).
- *
- * Sections top-to-bottom:
- *   1. Horizontal sport-category tabs (Cricket, Football, Horse Racing, etc.)
- *   2. Provider chips row
- *   3. Sub-category tabs (Popular, New, Roulette, Slots ...)
- *   4. Horizontal-scroll game card carousel
- *   5. "In-Play" cricket matches list (admin-managed via `/featured/matches`)
- *
- * Body is set to a WHITE background (as user requested) via a wrapping div
- * that overrides the app's dark theme locally.
+ * White-body lobby (govinda365-style). Now:
+ *   • Full-bleed on mobile — no side padding, edge-to-edge sections.
+ *   • The Category chips, Provider chips, and Popular-Games strip all
+ *     auto-scroll LEFT forever using the `marquee-track` CSS animation.
+ *     Hovering pauses it, so users can still click.
+ *   • Chips carry per-item colour so the row is vibrant, not flat gray.
  */
 
 const CATEGORIES = [
-  { key: "cricket",     label: "Cricket",       icon: Radio,     to: "/in-play" },
-  { key: "football",    label: "Football",      icon: Sparkles,  to: "/football" },
-  { key: "horse",       label: "Horse Racing",  icon: Trophy,    to: "/horse-racing" },
-  { key: "aviator",     label: "Aviator",       icon: Plane,     to: "/aviator" },
-  { key: "casino",      label: "Casino",        icon: Dices,     to: "/games" },
-  { key: "virtual",     label: "Virtual",       icon: Zap,       to: "/virtual" },
+  { key: "cricket",  label: "Cricket",      icon: Radio,    to: "/in-play",       tone: "bg-emerald-500 text-white" },
+  { key: "football", label: "Football",     icon: Sparkles, to: "/football",      tone: "bg-cyan-500 text-white" },
+  { key: "horse",    label: "Horse Racing", icon: Trophy,   to: "/horse-racing",  tone: "bg-amber-500 text-white" },
+  { key: "aviator",  label: "Aviator",      icon: Plane,    to: "/aviator",       tone: "bg-fuchsia-500 text-white" },
+  { key: "casino",   label: "Casino",       icon: Dices,    to: "/games",         tone: "bg-red-500 text-white" },
+  { key: "virtual",  label: "Virtual",      icon: Zap,      to: "/virtual",       tone: "bg-orange-500 text-white" },
 ];
 
-const PROVIDERS = ["Betsoft", "Betgames.tv", "Mac88", "Gamzix", "Evoplay", "Fun Games"];
+const PROVIDERS = [
+  { label: "Betsoft",     tone: "bg-blue-100 text-blue-700 border-blue-200" },
+  { label: "Betgames.tv", tone: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  { label: "Mac88",       tone: "bg-amber-100 text-amber-700 border-amber-200" },
+  { label: "Gamzix",      tone: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200" },
+  { label: "Evoplay",     tone: "bg-red-100 text-red-700 border-red-200" },
+  { label: "Fun Games",   tone: "bg-cyan-100 text-cyan-700 border-cyan-200" },
+];
 
 const SUB_TABS = [
-  { key: "popular",       label: "Popular" },
-  { key: "new",           label: "New Launch" },
-  { key: "indian",        label: "Indian Games" },
-  { key: "roulette",      label: "Roulette" },
-  { key: "aesexy",        label: "AE Sexy" },
-  { key: "slots",         label: "Slots" },
+  { key: "popular",  label: "Popular",      active: "bg-amber-400 text-slate-900", idle: "bg-amber-50 text-amber-800" },
+  { key: "new",      label: "New Launch",   active: "bg-emerald-500 text-white",   idle: "bg-emerald-50 text-emerald-800" },
+  { key: "indian",   label: "Indian Games", active: "bg-orange-500 text-white",    idle: "bg-orange-50 text-orange-800" },
+  { key: "roulette", label: "Roulette",     active: "bg-red-500 text-white",       idle: "bg-red-50 text-red-800" },
+  { key: "aesexy",   label: "AE Sexy",      active: "bg-pink-500 text-white",      idle: "bg-pink-50 text-pink-800" },
+  { key: "slots",    label: "Slots",        active: "bg-fuchsia-500 text-white",   idle: "bg-fuchsia-50 text-fuchsia-800" },
 ];
 
-// Playable / soon-playable game tiles that fill the horizontal carousel.
 const GAME_TILES = [
-  { id: "aviator",   title: "Aviator",         subtitle: "Crash game",       to: "/aviator",           tint: "from-cyan-500 to-emerald-500", icon: Plane },
-  { id: "virtual",   title: "Virtual Cricket", subtitle: "Live T20 markets", to: "/virtual",           tint: "from-amber-500 to-orange-500",   icon: Zap },
-  { id: "roulette",  title: "Roulette",        subtitle: "7 live tables",    to: "/games/roulette",   tint: "from-red-500 to-rose-600",       icon: Dices },
-  { id: "mines",     title: "Mines",           subtitle: "Coming soon",      to: null,                 tint: "from-fuchsia-500 to-purple-600", icon: Sparkles, soon: true },
-  { id: "plinko",    title: "Plinko",          subtitle: "Coming soon",      to: null,                 tint: "from-teal-500 to-emerald-600",   icon: Trophy,    soon: true },
-  { id: "dice",      title: "Dice",            subtitle: "Coming soon",      to: null,                 tint: "from-orange-500 to-red-600",     icon: Dices,     soon: true },
-  { id: "slots",     title: "Neon Slots",      subtitle: "Coming soon",      to: null,                 tint: "from-pink-500 to-fuchsia-600",   icon: Sparkles,  soon: true },
+  { id: "aviator",  title: "Aviator",         subtitle: "Crash game",       to: "/aviator",         tint: "from-cyan-500 to-emerald-500",    icon: Plane },
+  { id: "virtual",  title: "Virtual Cricket", subtitle: "Live T20 markets", to: "/virtual",         tint: "from-amber-500 to-orange-500",    icon: Zap },
+  { id: "roulette", title: "Roulette",        subtitle: "7 live tables",    to: "/games/roulette",  tint: "from-red-500 to-rose-600",        icon: Dices },
+  { id: "mines",    title: "Mines",           subtitle: "Coming soon",      to: null,               tint: "from-fuchsia-500 to-purple-600",  icon: Sparkles, soon: true },
+  { id: "plinko",   title: "Plinko",          subtitle: "Coming soon",      to: null,               tint: "from-teal-500 to-emerald-600",    icon: Trophy,   soon: true },
+  { id: "dice",     title: "Dice",            subtitle: "Coming soon",      to: null,               tint: "from-orange-500 to-red-600",      icon: Dices,    soon: true },
+  { id: "slots",    title: "Neon Slots",      subtitle: "Coming soon",      to: null,               tint: "from-pink-500 to-fuchsia-600",    icon: Sparkles, soon: true },
 ];
 
 export default function Lobby() {
   const { user, refresh } = useAuth();
-  const [activeCat, setActiveCat] = useState("cricket");
   const [activeSub, setActiveSub] = useState("popular");
   const [featured, setFeatured] = useState([]);
 
-  // Fetch admin-pushed live matches for the cricket in-play list.
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -84,111 +83,101 @@ export default function Lobby() {
   };
 
   return (
-    <div className="bg-white text-slate-900 min-h-screen" data-testid="lobby-white">
-      <div className="max-w-6xl mx-auto px-4 py-4 space-y-5">
-        {/* Sport / category horizontal scroller */}
-        <HorizontalScroll testid="cat-scroll">
+    <div className="bg-white text-slate-900 min-h-screen w-full" data-testid="lobby-white">
+      <div className="max-w-6xl mx-auto py-3 space-y-4">
+        {/* ── Category chips (auto-scroll left, endless) ──────────────── */}
+        <MarqueeRow duration="35s" testid="cat-marquee">
           {CATEGORIES.map((c) => (
             <Link
               key={c.key}
               to={c.to}
-              onClick={() => setActiveCat(c.key)}
               data-testid={`cat-${c.key}`}
-              className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                activeCat === c.key
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
+              className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold shadow-sm ${c.tone} hover:brightness-105`}
             >
               <c.icon className="w-4 h-4" strokeWidth={2.2} />
               <span>{c.label}</span>
             </Link>
           ))}
-        </HorizontalScroll>
+        </MarqueeRow>
 
-        {/* Provider chips (decorative) */}
-        <HorizontalScroll testid="providers-scroll">
+        {/* ── Provider chips (auto-scroll left, endless) ──────────────── */}
+        <MarqueeRow duration="40s" testid="providers-marquee">
           {PROVIDERS.map((p) => (
             <div
-              key={p}
-              data-testid={`provider-${p.toLowerCase().replace(/\W+/g, "-")}`}
-              className="shrink-0 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-[11px] uppercase tracking-widest text-slate-500 font-semibold"
+              key={p.label}
+              data-testid={`provider-${p.label.toLowerCase().replace(/\W+/g, "-")}`}
+              className={`shrink-0 px-3 py-1.5 rounded-md border text-[11px] uppercase tracking-widest font-bold ${p.tone}`}
             >
-              {p}
+              {p.label}
             </div>
           ))}
-        </HorizontalScroll>
+        </MarqueeRow>
 
-        {/* Sub-category tabs */}
-        <HorizontalScroll testid="subtabs-scroll">
+        {/* ── Sub-category tabs (static, tappable) ───────────────────── */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar snap-x px-4">
           {SUB_TABS.map((s) => (
             <button
               key={s.key}
               onClick={() => setActiveSub(s.key)}
               data-testid={`sub-${s.key}`}
-              className={`shrink-0 px-3.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                activeSub === s.key
-                  ? "bg-amber-400 text-slate-900"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+              className={`shrink-0 px-3.5 py-1.5 rounded-md text-xs font-bold transition-colors ${activeSub === s.key ? s.active : s.idle}`}
             >
               {s.label}
             </button>
           ))}
-        </HorizontalScroll>
+        </div>
 
-        {/* Game card carousel */}
+        {/* ── Popular games (auto-scroll left, endless) ──────────────── */}
         <section data-testid="games-carousel">
           <SectionHeader title="Popular Games" cta={{ to: "/games", label: "See all" }} />
-          <HorizontalScroll testid="games-scroll" gap="gap-3" showArrows>
-            {GAME_TILES.map((g) => (
-              <GameTile key={g.id} {...g} />
-            ))}
-          </HorizontalScroll>
+          <MarqueeRow duration="45s" testid="games-marquee" gap="gap-3">
+            {GAME_TILES.map((g) => <GameTile key={g.id} {...g} />)}
+          </MarqueeRow>
         </section>
 
-        {/* Fantasy sports strip (decorative for now) */}
-        <section data-testid="fantasy-strip">
-          <SectionHeader title="Fantasy Sports" />
+        {/* ── Fantasy strip ─────────────────────────────────────────── */}
+        <section data-testid="fantasy-strip" className="px-4">
+          <SectionHeader title="Fantasy Sports" flush />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <FantasyChip icon={Radio}   label="Cricket 11"   to="/virtual" tint="bg-emerald-100 text-emerald-700" />
-            <FantasyChip icon={Sparkles} label="Football 11"  to="/football" tint="bg-cyan-100 text-cyan-700" />
-            <FantasyChip icon={Trophy}  label="Horse Racing" to="/horse-racing" tint="bg-amber-100 text-amber-700" />
-            <FantasyChip icon={Dices}   label="More"         to="/games" tint="bg-slate-100 text-slate-700" />
+            <FantasyChip icon={Radio}    label="Cricket 11"   to="/virtual"      tone="bg-emerald-500 text-white" />
+            <FantasyChip icon={Sparkles} label="Football 11"  to="/football"     tone="bg-cyan-500 text-white" />
+            <FantasyChip icon={Trophy}   label="Horse Racing" to="/horse-racing" tone="bg-amber-500 text-white" />
+            <FantasyChip icon={Dices}    label="More"         to="/games"        tone="bg-slate-800 text-white" />
           </div>
         </section>
 
-        {/* Daily bonus card */}
-        <section className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-4 flex items-center gap-3" data-testid="daily-bonus-card">
-          <div className="w-10 h-10 rounded-lg bg-amber-400 grid place-items-center shrink-0">
+        {/* ── Daily bonus ───────────────────────────────────────────── */}
+        <section className="mx-4 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 p-4 flex items-center gap-3" data-testid="daily-bonus-card">
+          <div className="w-10 h-10 rounded-lg bg-amber-400 grid place-items-center shrink-0 shadow-md">
             <Gift className="w-5 h-5 text-white" strokeWidth={2.5} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-slate-900">Daily bonus</div>
-            <div className="text-xs text-slate-500 truncate">Claim ₹10 free every 24 hours — no deposit needed.</div>
+            <div className="text-xs text-slate-600 truncate">Claim ₹10 free every 24 hours — no deposit needed.</div>
           </div>
           <button
             onClick={claimDaily}
             data-testid="claim-bonus-btn"
-            className="px-3 py-2 rounded-lg text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 shrink-0"
+            className="px-4 py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md hover:shadow-lg shrink-0"
           >
             Claim
           </button>
         </section>
 
-        {/* In-Play matches list (admin-pushed) */}
-        <section data-testid="inplay-matches">
+        {/* ── In-Play list ──────────────────────────────────────────── */}
+        <section data-testid="inplay-matches" className="px-4">
           <SectionHeader
             title="In-Play"
             cta={{ to: "/in-play", label: "All matches" }}
-            right={<span className="text-[11px] uppercase tracking-widest text-slate-400">MO · BM · F</span>}
+            right={<span className="text-[11px] uppercase tracking-widest text-slate-400 font-semibold">MO · BM · F</span>}
+            flush
           />
           {featured.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-8 text-center text-slate-400 text-sm" data-testid="no-featured">
               No live matches right now. Check back soon or explore Virtual Cricket.
             </div>
           ) : (
-            <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-hidden">
+            <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
               {featured.map((m) => <MatchRow key={m.id} m={m} />)}
             </div>
           )}
@@ -200,48 +189,35 @@ export default function Lobby() {
 
 /* ─── Sub-components ────────────────────────────────────────── */
 
-function SectionHeader({ title, cta, right }) {
+function SectionHeader({ title, cta, right, flush }) {
   return (
-    <div className="flex items-end justify-between mb-2 pt-1">
+    <div className={`flex items-end justify-between mb-2 pt-1 ${flush ? "" : "px-4"}`}>
       <h2 className="font-heading font-bold text-slate-900 text-base sm:text-lg">{title}</h2>
       {right ? right : (cta && (
-        <Link to={cta.to} className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1">
-          {cta.label} <ChevronRight className="w-3.5 h-3.5" />
+        <Link to={cta.to} className="text-xs font-semibold text-cyan-600 hover:text-cyan-700">
+          {cta.label} →
         </Link>
       ))}
     </div>
   );
 }
 
-/** Horizontal scroller with optional arrow buttons on desktop. */
-function HorizontalScroll({ children, gap = "gap-2", showArrows = false, testid }) {
-  const ref = useRef(null);
-  const scroll = (dir) => {
-    if (!ref.current) return;
-    ref.current.scrollBy({ left: dir * 260, behavior: "smooth" });
-  };
+/** Endless left-scrolling row. Renders children twice so the loop is
+ *  seamless. Consumer supplies a CSS duration (e.g. "35s"). */
+function MarqueeRow({ children, duration = "30s", gap = "gap-2", testid }) {
   return (
-    <div className="relative">
-      <div ref={ref} className={`flex ${gap} overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth`} data-testid={testid}>
-        {children}
+    <div className="relative overflow-hidden w-full" data-testid={testid}>
+      <div className={`marquee-track ${gap}`} style={{ "--marquee-duration": duration }}>
+        <div className={`flex ${gap} pr-3 shrink-0`}>{children}</div>
+        <div className={`flex ${gap} pr-3 shrink-0`} aria-hidden>{children}</div>
       </div>
-      {showArrows && (
-        <>
-          <button aria-label="scroll left"  className="hidden sm:grid absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 w-8 h-8 rounded-full bg-white/95 shadow border border-slate-200 place-items-center" onClick={() => scroll(-1)}>
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button aria-label="scroll right" className="hidden sm:grid absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 w-8 h-8 rounded-full bg-white/95 shadow border border-slate-200 place-items-center" onClick={() => scroll(1)}>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </>
-      )}
     </div>
   );
 }
 
 function GameTile({ title, subtitle, to, tint, icon: Icon, soon }) {
   const inner = (
-    <div className={`w-40 sm:w-48 shrink-0 snap-start rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-white transition-transform ${to ? "hover:-translate-y-0.5" : "opacity-80"}`} data-testid={`game-tile-${title.toLowerCase().replace(/\s+/g,"-")}`}>
+    <div className={`w-40 sm:w-48 shrink-0 rounded-xl overflow-hidden shadow-md border border-slate-200 bg-white transition-transform ${to ? "hover:-translate-y-0.5" : "opacity-90"}`} data-testid={`game-tile-${title.toLowerCase().replace(/\s+/g,"-")}`}>
       <div className={`relative h-24 sm:h-28 bg-gradient-to-br ${tint} grid place-items-center`}>
         <Icon className="w-9 h-9 text-white drop-shadow-md" strokeWidth={2} />
         {soon && (
@@ -257,11 +233,11 @@ function GameTile({ title, subtitle, to, tint, icon: Icon, soon }) {
   return to ? <Link to={to}>{inner}</Link> : <div>{inner}</div>;
 }
 
-function FantasyChip({ icon: Icon, label, to, tint }) {
+function FantasyChip({ icon: Icon, label, to, tone }) {
   return (
     <Link
       to={to}
-      className={`flex items-center gap-2 px-3 py-3 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors ${tint}`}
+      className={`flex items-center gap-2 px-3 py-3 rounded-xl shadow-sm hover:shadow-md transition-shadow ${tone}`}
       data-testid={`fantasy-chip-${label.toLowerCase().replace(/\s+/g,"-")}`}
     >
       <Icon className="w-5 h-5" strokeWidth={2} />
@@ -270,8 +246,6 @@ function FantasyChip({ icon: Icon, label, to, tint }) {
   );
 }
 
-/** Single row in the In-Play matches list. Shows team names + times +
- *  MO/BM/F odds cells (matches reference exchange layout). */
 function MatchRow({ m }) {
   const time = m.match_time ? new Date(m.match_time) : null;
   const timeStr = time ? time.toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : "TBA";
@@ -281,7 +255,7 @@ function MatchRow({ m }) {
         <div className="font-semibold text-slate-900 text-sm truncate">
           {m.team1_name} <span className="text-slate-400">vs</span> {m.team2_name}
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+        <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5 flex-wrap">
           {m.tournament && <span className="truncate">{m.tournament}</span>}
           <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {timeStr}</span>
           {m.is_live && <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />LIVE</span>}
@@ -300,15 +274,13 @@ function OddsCell({ back, lay, single }) {
   const fmt = (v) => (v == null ? "-" : Number(v).toFixed(2));
   if (single) {
     return (
-      <div className="w-14 h-10 rounded bg-slate-100 grid place-items-center text-xs font-bold text-slate-700">
-        {fmt(back)}
-      </div>
+      <div className="w-12 h-9 rounded bg-slate-100 grid place-items-center text-xs font-bold text-slate-700">{fmt(back)}</div>
     );
   }
   return (
     <div className="flex gap-0.5">
-      <div className="w-12 h-10 rounded-l bg-blue-100 grid place-items-center text-[11px] font-bold text-blue-700">{fmt(back)}</div>
-      <div className="w-12 h-10 rounded-r bg-pink-100 grid place-items-center text-[11px] font-bold text-pink-700">{fmt(lay)}</div>
+      <div className="w-10 h-9 rounded-l bg-blue-500 grid place-items-center text-[11px] font-bold text-white">{fmt(back)}</div>
+      <div className="w-10 h-9 rounded-r bg-pink-500 grid place-items-center text-[11px] font-bold text-white">{fmt(lay)}</div>
     </div>
   );
 }
