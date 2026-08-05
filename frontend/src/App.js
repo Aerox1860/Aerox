@@ -7,6 +7,9 @@ import Register from "@/pages/Register";
 import Welcome from "@/pages/Welcome";
 import Lobby from "@/pages/Lobby";
 import Game from "@/pages/Game";
+import Aviator from "@/pages/Aviator";
+import Football from "@/pages/Football";
+import HorseRacing from "@/pages/HorseRacing";
 import Wallet from "@/pages/Wallet";
 import Deposit from "@/pages/Deposit";
 import Withdraw from "@/pages/Withdraw";
@@ -25,6 +28,7 @@ import AdminUpi from "@/pages/admin/UpiConfig";
 import AdminGameControl from "@/pages/admin/GameControl";
 import AdminReports from "@/pages/admin/Reports";
 import AdminSupport from "@/pages/admin/Support";
+import AdminMatches from "@/pages/admin/Matches";
 
 import PlayerLayout from "@/components/PlayerLayout";
 import ChangePassword from "@/pages/ChangePassword";
@@ -96,6 +100,7 @@ function AppRoutes() {
           <Route path="withdrawals" element={<AdminWithdrawals />} />
           <Route path="upi" element={<AdminUpi />} />
           <Route path="game" element={<AdminGameControl />} />
+          <Route path="matches" element={<AdminMatches />} />
           <Route path="reports" element={<AdminReports />} />
           <Route path="support" element={<AdminSupport />} />
         </Route>
@@ -118,6 +123,9 @@ function AppRoutes() {
           <Route path="games/roulette" element={<RouletteLobby />} />
           <Route path="games/roulette/:tableId" element={<RouletteGame />} />
           <Route path="game" element={<Game />} />
+          <Route path="aviator" element={<Aviator />} />
+          <Route path="football" element={<Football />} />
+          <Route path="horse-racing" element={<HorseRacing />} />
           <Route path="wallet" element={<Wallet />} />
           <Route path="deposit" element={<Deposit />} />
           <Route path="withdraw" element={<Withdraw />} />
@@ -147,6 +155,9 @@ function AppRoutes() {
         <Route path="games/roulette" element={<RouletteLobby />} />
         <Route path="games/roulette/:tableId" element={<RouletteGame />} />
         <Route path="game" element={<Game />} />
+        <Route path="aviator" element={<Aviator />} />
+        <Route path="football" element={<Football />} />
+        <Route path="horse-racing" element={<HorseRacing />} />
         <Route path="wallet" element={<Wallet />} />
         <Route path="deposit" element={<Deposit />} />
         <Route path="withdraw" element={<Withdraw />} />
@@ -165,6 +176,7 @@ function AppRoutes() {
         <Route path="withdrawals" element={<AdminWithdrawals />} />
         <Route path="upi" element={<AdminUpi />} />
         <Route path="game" element={<AdminGameControl />} />
+        <Route path="matches" element={<AdminMatches />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="support" element={<AdminSupport />} />
       </Route>

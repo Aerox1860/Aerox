@@ -1493,6 +1493,15 @@ async def root():
 
 app.include_router(api)
 
+# Featured matches (admin-managed, appears on player lobby)
+from featured import make_public_router as _build_featured
+_featured_router = _build_featured(current_user, admin_only)
+# Ensure /api prefix consistency
+from fastapi import APIRouter as _APIRouter
+_wrapped_featured = _APIRouter(prefix="/api")
+_wrapped_featured.include_router(_featured_router)
+app.include_router(_wrapped_featured)
+
 # ------------- Roulette module -------------
 from roulette import build_router as _build_roulette
 def _is_roulette_enabled() -> bool:

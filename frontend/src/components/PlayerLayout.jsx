@@ -2,7 +2,8 @@ import { Outlet, NavLink, useNavigate, Link } from "react-router-dom";
 import { useState } from "react";
 import {
   Home, Gamepad2, Wallet as WalletIcon, Radio, User, LogOut,
-  Menu, X, Trophy, Share2, LifeBuoy, ChevronRight, Zap, Dices
+  Menu, X, Trophy, Share2, LifeBuoy, ChevronRight, Zap, Dices,
+  Plane, Trophy as HorseIcon, Sparkles as SparklesIcon
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -14,21 +15,24 @@ const items = [
   { to: "/profile", label: "Me", icon: User, testid: "nav-profile" },
 ];
 
-// Sections shown in the header side-drawer
+// Sections shown in the header side-drawer (matches user's spec:
+// Cricket · Football · Horse Racing · Casino · Aviator · Support · Logout)
 const drawerSections = [
   {
-    title: "Cricket",
+    title: "Sports",
     items: [
-      { to: "/in-play",  label: "Live Matches (In-Play)", icon: Radio },
-      { to: "/virtual",  label: "Virtual Cricket",        icon: Zap },
+      { to: "/in-play",       label: "Cricket · Live",     icon: Radio },
+      { to: "/virtual",       label: "Cricket · Virtual",  icon: Zap },
+      { to: "/football",      label: "Football",           icon: SparklesIcon, badge: "Soon" },
+      { to: "/horse-racing",  label: "Horse Racing",       icon: HorseIcon,   badge: "Soon" },
     ],
   },
   {
     title: "Casino",
     items: [
-      { to: "/games",           label: "All Games",  icon: Gamepad2 },
-      { to: "/game",            label: "Crash",      icon: Zap },
-      { to: "/games/roulette",  label: "Roulette",   icon: Dices },
+      { to: "/games",           label: "All Casino Games", icon: Gamepad2 },
+      { to: "/aviator",         label: "Aviator",          icon: Plane },
+      { to: "/games/roulette",  label: "Roulette",         icon: Dices },
     ],
   },
   {
@@ -138,6 +142,11 @@ export default function PlayerLayout() {
                           <>
                             <it.icon className={`w-4 h-4 ${isActive ? "text-cyan-300" : "text-slate-400"}`} strokeWidth={2} />
                             <span className="flex-1">{it.label}</span>
+                            {it.badge && (
+                              <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-400/25">
+                                {it.badge}
+                              </span>
+                            )}
                             <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                           </>
                         )}

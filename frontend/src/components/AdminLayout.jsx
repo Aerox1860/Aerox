@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, ArrowDownToLine, ArrowUpFromLine, QrCode, Gamepad2, FileBarChart, LogOut, Plane, LifeBuoy } from "lucide-react";
+import { LayoutDashboard, Users, ArrowDownToLine, ArrowUpFromLine, QrCode, Gamepad2, FileBarChart, LogOut, Plane, LifeBuoy, Radio } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const items = [
@@ -8,6 +8,7 @@ const items = [
   { to: "/admin/deposits", label: "Deposits", icon: ArrowDownToLine, testid: "admin-nav-deposits" },
   { to: "/admin/withdrawals", label: "Withdrawals", icon: ArrowUpFromLine, testid: "admin-nav-withdrawals" },
   { to: "/admin/upi", label: "UPI / QR", icon: QrCode, testid: "admin-nav-upi" },
+  { to: "/admin/matches", label: "Matches", icon: Radio, testid: "admin-nav-matches" },
   { to: "/admin/support", label: "Support", icon: LifeBuoy, testid: "admin-nav-support" },
   { to: "/admin/game", label: "Game Control", icon: Gamepad2, testid: "admin-nav-game" },
   { to: "/admin/reports", label: "Reports", icon: FileBarChart, testid: "admin-nav-reports" },
