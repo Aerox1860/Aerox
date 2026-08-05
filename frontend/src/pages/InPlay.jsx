@@ -1,20 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
-import { Radio, Clock, ChevronRight, TrendingUp, TrendingDown } from "lucide-react";
 
 /**
- * White-themed In-Play page. Lists all admin-pushed live matches with cards
- * showing dynamic (jittering) odds — the numbers tick every 2 seconds ±0.05
- * to give the "live exchange" feel real bettors expect.
+ * Compact govinda365-style In-Play table.
+ *
+ * Layout per row (mobile-optimised, dense):
+ *   [LIVE tag]  [time]  [Team1 / Team2 stacked]  [MO BM F tags]  [MO back][MO lay]  [BM back][BM lay]  [F back][F lay]
+ *
+ * Odds jitter every 2 seconds ±0.05 with a tiny random-walk on the volume so
+ * the whole table feels "live". Missing odds show as a light "-" cell.
+ * Rows scroll horizontally on tiny screens so the odds columns stay tappable.
  */
 
-const JITTER_PAISA_MAX = 0.06;          // ± ₹0.06 per tick
+const JITTER_MAX = 0.06;
 
-function jitter(base) {
-  if (base == null) return null;
-  const delta = (Math.random() - 0.5) * 2 * JITTER_PAISA_MAX;
-  return Math.max(1.01, +(base + delta).toFixed(2));
+function jitter(v) {
+  if (v == null) return null;
+  const d = (Math.random() - 0.5) * 2 * JITTER_MAX;
+  return Math.max(1.01, +(v + d).toFixed(2));
+}
+
+function pseudoVol(seed, tick) {
+  // deterministic-ish volume — small drift over ticks
+  const base = ((seed * 9301 + tick * 49297) % 20000) + 500;
+  return base;
 }
 
 export default function InPlay() {
@@ -33,34 +43,44 @@ export default function InPlay() {
       }
     };
     load();
-    const t = setInterval(load, 20000);           // fresh admin data every 20s
-    const j = setInterval(() => setTick((n) => n + 1), 2000);  // odds jitter every 2s
-    return () => { alive = false; clearInterval(t); clearInterval(j); };
+    const p = setInterval(load, 20000);
+    const j = setInterval(() => setTick((n) => n + 1), 2000);
+    return () => { alive = false; clearInterval(p); clearInterval(j); };
   }, []);
 
   return (
     <div className="bg-white text-slate-900 min-h-screen w-full" data-testid="inplay-white">
-      <div className="max-w-6xl mx-auto px-4 py-4 space-y-4">
-        <header className="flex items-center justify-between">
-          <div>
-            <h1 className="font-heading font-black text-2xl">In-Play · Live matches</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Odds update every 2 seconds — click to place a bet.</p>
-          </div>
-          <div className="text-[10px] uppercase tracking-widest font-bold text-emerald-600 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Live
-          </div>
-        </header>
+      {/* Sport tab strip (govinda-style — Home / Cricket / Sportsbook / Casino) */}
+      <div className="border-b border-slate-200">
+        <div className="max-w-6xl mx-auto px-3 py-2 flex gap-1.5 overflow-x-auto no-scrollbar">
+          <TopTab label="Home"        icon="🏠" to="/" />
+          <TopTab label="Cricket"     icon="🏏" active />
+          <TopTab label="Sportsbook"  icon="🏆" to="/games" />
+          <TopTab label="Casino"      icon="🎰" to="/games" />
+          <TopTab label="Aviator"     icon="✈️" to="/aviator" />
+        </div>
+      </div>
 
+      {/* Column headers (sticky under sport tabs on scroll) */}
+      <div className="max-w-6xl mx-auto px-2 pt-2">
+        <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold flex items-center justify-end gap-0.5 pr-1">
+          <ColHeader label="MO" tone="bg-emerald-100 text-emerald-700" />
+          <ColHeader label="BM" tone="bg-sky-100 text-sky-700" />
+          <ColHeader label="F"  tone="bg-orange-100 text-orange-700" />
+        </div>
+      </div>
+
+      {/* Matches list */}
+      <div className="max-w-6xl mx-auto pb-8">
         {loading ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-12 text-center text-slate-400">Loading matches…</div>
+          <div className="py-10 text-center text-slate-400 text-sm">Loading matches…</div>
         ) : matches.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-12 text-center text-slate-400 text-sm" data-testid="inplay-empty">
-            No live matches right now. <Link to="/virtual" className="text-cyan-600 underline">Play Virtual Cricket</Link> instead.
+          <div className="py-10 mx-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-center text-slate-400 text-sm" data-testid="inplay-empty">
+            No live matches right now. Push one from the admin panel.
           </div>
         ) : (
-          <div className="space-y-3">
-            {matches.map((m) => <LiveMatchCard key={m.id} match={m} tick={tick} />)}
+          <div className="divide-y divide-slate-100 border-t border-b border-slate-100 bg-white">
+            {matches.map((m, i) => <MatchTableRow key={m.id} match={m} tick={tick} seed={i + 1} />)}
           </div>
         )}
       </div>
@@ -68,121 +88,142 @@ export default function InPlay() {
   );
 }
 
-/** Single live match card with jittering odds. */
-function LiveMatchCard({ match, tick }) {
-  // Freshly jittered odds every render (parent re-renders every 2s via `tick`).
+/* ─── Sub-components ────────────────────────────────────────── */
+
+function TopTab({ label, icon, to, active }) {
+  const cls = `shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors border ${
+    active
+      ? "bg-slate-900 text-white border-slate-900"
+      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+  }`;
+  const inner = <><span>{icon}</span><span>{label}</span></>;
+  return to && !active ? <Link to={to} className={cls}>{inner}</Link> : <div className={cls}>{inner}</div>;
+}
+
+function ColHeader({ label, tone }) {
+  return (
+    <div className={`w-[68px] sm:w-[92px] text-center py-1 rounded-md text-[10px] font-bold ${tone}`}>{label}</div>
+  );
+}
+
+/** One dense match row. */
+function MatchTableRow({ match, tick, seed }) {
   const odds = useMemo(() => ({
-    t1_back: jitter(match.odds_team1_back),
-    t1_lay:  jitter(match.odds_team1_lay),
-    t2_back: jitter(match.odds_team2_back),
-    t2_lay:  jitter(match.odds_team2_lay),
-    draw:    jitter(match.odds_draw),
+    // MO = Match Odds (use team1 as one side of MO)
+    mo_back: jitter(match.odds_team1_back),
+    mo_lay:  jitter(match.odds_team1_lay),
+    // BM = Bookmaker (use team2 odds as bookmaker cell to fill the reference layout)
+    bm_back: jitter(match.odds_team2_back),
+    bm_lay:  jitter(match.odds_team2_lay),
+    // F = Fancy (single-value cell — use draw if present, else null)
+    f_back:  jitter(match.odds_draw),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [tick, match.id]);
 
   const time = match.match_time ? new Date(match.match_time) : null;
-  const timeStr = time ? time.toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : "TBA";
+  const day  = time ? time.toLocaleDateString(undefined, { weekday: "short" }) : "Today";
+  const hh   = time ? time.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "—";
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3" data-testid={`live-card-${match.id}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            {match.tournament && <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500">{match.tournament}</span>}
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live
-            </span>
-          </div>
-          <div className="font-heading font-black text-lg text-slate-900 truncate">
-            {match.team1_name} <span className="text-slate-400 font-normal">vs</span> {match.team2_name}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-            <Clock className="w-3 h-3" /> {timeStr}
-          </div>
+    <Link
+      to={`/in-play`}
+      data-testid={`row-${match.id}`}
+      className="grid grid-cols-[54px_1fr_auto] items-center gap-2 px-2 py-2 hover:bg-slate-50 active:bg-slate-100"
+    >
+      {/* Column 1: time + LIVE flag */}
+      <div className="text-[11px] text-slate-700 leading-tight">
+        <div className="inline-flex items-center gap-1">
+          <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-red-500 text-white uppercase tracking-widest">Live</span>
         </div>
-        <div className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
-          MO · BM · F
-        </div>
+        <div className="mt-0.5 text-[11px] font-semibold text-slate-500">{day}</div>
+        <div className="text-[11px] font-bold text-slate-900">{hh}</div>
       </div>
 
-      {/* Team 1 odds row */}
-      <OddsRow label={match.team1_name} back={odds.t1_back} lay={odds.t1_lay} />
-      {/* Team 2 odds row */}
-      <OddsRow label={match.team2_name} back={odds.t2_back} lay={odds.t2_lay} />
-      {/* Draw / Fancy — if provided */}
-      {match.odds_draw != null && (
-        <OddsRow label="The Draw" back={odds.draw} single />
-      )}
+      {/* Column 2: match name + tags */}
+      <div className="min-w-0">
+        <div className="flex items-center gap-1 flex-wrap">
+          <TinyTag label="MO" tone="bg-emerald-500 text-white" />
+          <TinyTag label="BM" tone="bg-sky-500 text-white" />
+          <TinyTag label="F"  tone="bg-orange-500 text-white" />
+          <TinyTag label="▶" tone="bg-slate-900 text-white text-[9px]" />
+        </div>
+        <div className="text-[12.5px] font-semibold text-slate-900 leading-tight mt-0.5 truncate">
+          {match.team1_name}
+        </div>
+        <div className="text-[12.5px] font-semibold text-slate-900 leading-tight truncate">
+          {match.team2_name}
+        </div>
+        {match.tournament && (
+          <div className="text-[10px] text-slate-500 truncate">{match.tournament}</div>
+        )}
+      </div>
 
-      {/* Players preview */}
-      {(match.team1_players?.length > 0 || match.team2_players?.length > 0) && (
-        <details className="pt-2 border-t border-slate-100" data-testid="players-details">
-          <summary className="cursor-pointer text-xs font-semibold text-slate-600 hover:text-slate-900">
-            Show playing squads
-          </summary>
-          <div className="grid sm:grid-cols-2 gap-3 mt-3">
-            {[[match.team1_name, match.team1_players], [match.team2_name, match.team2_players]].map(([tn, plrs]) => (
-              <div key={tn} className="rounded-lg bg-slate-50 p-3">
-                <div className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-1.5">{tn}</div>
-                <div className="text-xs text-slate-700 space-y-0.5">
-                  {(plrs || []).map((p, i) => <div key={i}>· {p}</div>)}
-                  {(!plrs || plrs.length === 0) && <div className="text-slate-400">Squad not published yet</div>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
+      {/* Column 3: odds cells (MO / BM / F) */}
+      <div className="flex items-center gap-0.5">
+        <OddsPair back={odds.mo_back} lay={odds.mo_lay} vol={pseudoVol(seed * 3,     tick)} />
+        <OddsPair back={odds.bm_back} lay={odds.bm_lay} vol={pseudoVol(seed * 3 + 1, tick)} />
+        <OddsPair back={odds.f_back}  lay={null}         vol={pseudoVol(seed * 3 + 2, tick)} single />
+      </div>
+    </Link>
+  );
+}
+
+function TinyTag({ label, tone }) {
+  return (
+    <span className={`inline-block px-1 py-[1px] rounded text-[8.5px] font-bold uppercase tracking-widest ${tone}`}>
+      {label}
+    </span>
+  );
+}
+
+function OddsPair({ back, lay, vol, single }) {
+  return (
+    <div className="flex gap-[1px]">
+      <OddsCell value={back} tone="blue" vol={vol} />
+      {!single && <OddsCell value={lay} tone="pink" vol={vol + 250} />}
+      {single && <OddsCell value={null} tone="blue" vol={null} placeholder />}
     </div>
   );
 }
 
-function OddsRow({ label, back, lay, single }) {
-  return (
-    <div className="grid grid-cols-[1fr_auto] items-center gap-3">
-      <div className="min-w-0 text-sm font-semibold text-slate-800 truncate">{label}</div>
-      <div className="flex items-center gap-1.5">
-        {back != null ? <OddsCell value={back} tone="blue" /> : <OddsPlaceholder />}
-        {!single && (lay != null ? <OddsCell value={lay} tone="pink" /> : <OddsPlaceholder />)}
-      </div>
-    </div>
-  );
-}
-
-/** Jittering odds cell with up/down arrow that flashes on change. */
-function OddsCell({ value, tone }) {
+function OddsCell({ value, tone, vol, placeholder }) {
   const [prev, setPrev] = useState(value);
-  const [flash, setFlash] = useState(null);   // "up" | "down" | null
-
+  const [flash, setFlash] = useState(null);
   useEffect(() => {
     if (prev == null || value == null) { setPrev(value); return; }
     if (value !== prev) {
       setFlash(value > prev ? "up" : "down");
-      const t = setTimeout(() => setFlash(null), 1200);
+      const t = setTimeout(() => setFlash(null), 900);
       setPrev(value);
       return () => clearTimeout(t);
     }
   }, [value, prev]);
 
-  const base = tone === "blue" ? "bg-blue-500" : "bg-pink-500";
+  const empty = value == null;
+  const bg = empty
+    ? "bg-slate-100 text-slate-400 border-slate-200"
+    : tone === "blue"
+    ? "bg-blue-100 text-blue-800 border-blue-200"
+    : "bg-pink-100 text-pink-800 border-pink-200";
   const flashCls = flash === "up"   ? "ring-2 ring-emerald-400"
                  : flash === "down" ? "ring-2 ring-red-400"
                  : "";
   return (
-    <div className={`relative w-14 h-10 rounded ${base} text-white grid place-items-center text-[12px] font-bold transition-shadow ${flashCls}`}
-         data-testid={`odds-${tone}`}>
-      <span>{value != null ? value.toFixed(2) : "-"}</span>
-      {flash && (
-        <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full grid place-items-center text-[9px] shadow-sm ${flash === "up" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"}`}>
-          {flash === "up" ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-        </span>
+    <div className={`w-[32px] sm:w-[44px] h-[42px] rounded border ${bg} ${flashCls} px-0.5 py-0.5 flex flex-col items-center justify-center transition-shadow`}>
+      <div className={`text-[11px] font-bold leading-none ${empty ? "opacity-70" : ""}`}>
+        {empty ? "-" : value.toFixed(2)}
+      </div>
+      {!empty && vol != null && (
+        <div className="text-[8.5px] mt-0.5 leading-none opacity-70 font-mono">
+          {formatVol(vol)}
+        </div>
       )}
+      {placeholder && <div className="text-[8.5px] opacity-0">-</div>}
     </div>
   );
 }
 
-function OddsPlaceholder() {
-  return <div className="w-14 h-10 rounded bg-slate-100 grid place-items-center text-slate-400 text-xs">-</div>;
+function formatVol(v) {
+  if (v >= 1000) return `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}K`;
+  return String(v);
 }
