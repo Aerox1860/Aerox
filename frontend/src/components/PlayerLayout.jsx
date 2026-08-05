@@ -3,7 +3,7 @@ import { useState } from "react";
 import {
   Home, Gamepad2, Wallet as WalletIcon, Radio, User, LogOut,
   Menu, X, Trophy, Share2, LifeBuoy, ChevronRight, Zap, Dices,
-  Plane, Trophy as HorseIcon, Sparkles as SparklesIcon
+  Plane, Trophy as HorseIcon, Sparkles as SparklesIcon, ShieldAlert
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -39,6 +39,7 @@ const drawerSections = [
     title: "Account",
     items: [
       { to: "/wallet",       label: "Wallet",       icon: WalletIcon },
+      { to: "/limits",       label: "Set Limits",   icon: ShieldAlert },
       { to: "/profile",      label: "Profile",      icon: User },
       { to: "/referrals",    label: "Referrals",    icon: Share2 },
       { to: "/leaderboard",  label: "Leaderboard",  icon: Trophy },

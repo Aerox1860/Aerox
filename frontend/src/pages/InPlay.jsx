@@ -1,300 +1,188 @@
-import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Radio, Calendar, MapPin, Coins, X, Trophy, Clock, Zap, Users, Loader2, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
+import { Radio, Clock, ChevronRight, TrendingUp, TrendingDown } from "lucide-react";
 
-// Data comes from the backend cricket proxy (CricAPI). Poll every 30s so
-// the free-tier quota (100 hits/day) is preserved via server-side cache.
-const POLL_MS = 30000;
+/**
+ * White-themed In-Play page. Lists all admin-pushed live matches with cards
+ * showing dynamic (jittering) odds — the numbers tick every 2 seconds ±0.05
+ * to give the "live exchange" feel real bettors expect.
+ */
+
+const JITTER_PAISA_MAX = 0.06;          // ± ₹0.06 per tick
+
+function jitter(base) {
+  if (base == null) return null;
+  const delta = (Math.random() - 0.5) * 2 * JITTER_PAISA_MAX;
+  return Math.max(1.01, +(base + delta).toFixed(2));
+}
 
 export default function InPlay() {
-  const [live, setLive] = useState([]);
-  const [upcoming, setUpcoming] = useState([]);
+  const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState(null);
-  const [tab, setTab] = useState("live");
-  const [openMatch, setOpenMatch] = useState(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       try {
-        const { data } = await api.get("/inplay/matches");
-        if (!alive) return;
-        setLive(data.live || []);
-        setUpcoming(data.upcoming || []);
-        setErr(null);
-      } catch (e) {
-        if (alive) setErr(e?.response?.data?.detail || e?.message || "Failed to fetch matches");
+        const { data } = await api.get("/featured/matches");
+        if (alive) setMatches(Array.isArray(data) ? data : []);
       } finally {
         if (alive) setLoading(false);
       }
     };
     load();
-    const t = setInterval(load, POLL_MS);
-    return () => { alive = false; clearInterval(t); };
+    const t = setInterval(load, 20000);           // fresh admin data every 20s
+    const j = setInterval(() => setTick((n) => n + 1), 2000);  // odds jitter every 2s
+    return () => { alive = false; clearInterval(t); clearInterval(j); };
   }, []);
 
-  const rows = tab === "live" ? live : upcoming;
+  return (
+    <div className="bg-white text-slate-900 min-h-screen w-full" data-testid="inplay-white">
+      <div className="max-w-6xl mx-auto px-4 py-4 space-y-4">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="font-heading font-black text-2xl">In-Play · Live matches</h1>
+            <p className="text-xs text-slate-500 mt-0.5">Odds update every 2 seconds — click to place a bet.</p>
+          </div>
+          <div className="text-[10px] uppercase tracking-widest font-bold text-emerald-600 flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Live
+          </div>
+        </header>
+
+        {loading ? (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-12 text-center text-slate-400">Loading matches…</div>
+        ) : matches.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-12 text-center text-slate-400 text-sm" data-testid="inplay-empty">
+            No live matches right now. <Link to="/virtual" className="text-cyan-600 underline">Play Virtual Cricket</Link> instead.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {matches.map((m) => <LiveMatchCard key={m.id} match={m} tick={tick} />)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Single live match card with jittering odds. */
+function LiveMatchCard({ match, tick }) {
+  // Freshly jittered odds every render (parent re-renders every 2s via `tick`).
+  const odds = useMemo(() => ({
+    t1_back: jitter(match.odds_team1_back),
+    t1_lay:  jitter(match.odds_team1_lay),
+    t2_back: jitter(match.odds_team2_back),
+    t2_lay:  jitter(match.odds_team2_lay),
+    draw:    jitter(match.odds_draw),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [tick, match.id]);
+
+  const time = match.match_time ? new Date(match.match_time) : null;
+  const timeStr = time ? time.toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : "TBA";
 
   return (
-    <div className="space-y-5" data-testid="inplay-page">
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3" data-testid={`live-card-${match.id}`}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-red-500/15 border border-red-400/40 grid place-items-center">
-              <Radio className="w-4 h-4 text-red-400 animate-pulse" />
-            </div>
-            <h1 className="font-heading text-2xl md:text-3xl font-black">In-Play</h1>
-          </div>
-          <p className="text-slate-400 text-sm mt-1">Live cricket action + what's next on the schedule.</p>
-        </div>
-        <div className="hidden md:flex items-center gap-2 text-xs text-slate-400">
-          <Zap className="w-3.5 h-3.5 text-yellow-300" />
-          <span>{live.length} live · {upcoming.length} upcoming</span>
-        </div>
-      </div>
-
-      {/* Featured: Virtual Cricket arena */}
-      <Link
-        to="/virtual"
-        data-testid="virtual-cta"
-        className="block card-surface p-4 md:p-5 relative overflow-hidden group hover:border-yellow-400/40 transition"
-      >
-        <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full bg-yellow-500/20 blur-3xl pointer-events-none" />
-        <div className="absolute top-3 right-3">
-          <span className="chip !bg-yellow-500/15 !border-yellow-400/50 !text-yellow-300 text-[10px] uppercase">
-            <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 animate-pulse" /> Live cricket
-          </span>
-        </div>
-        <div className="flex items-center gap-4 relative">
-          <div className="w-12 h-12 rounded-xl bg-yellow-500/15 border border-yellow-400/50 grid place-items-center">
-            <Trophy className="w-6 h-6 text-yellow-300" />
-          </div>
-          <div className="flex-1">
-            <div className="font-heading font-black text-lg leading-tight">Virtual Cricket Arena</div>
-            <div className="text-xs text-slate-400 mt-0.5">Simulated T5 matches every few minutes · Bet on Winner, Toss & Total Runs · Mid-match cashout</div>
-          </div>
-          <div className="hidden md:flex items-center gap-1 text-cyan-300 text-sm font-semibold">
-            Enter arena <ChevronRight className="w-4 h-4" />
-          </div>
-        </div>
-      </Link>
-
-      {/* Tabs */}
-      <div className="flex gap-2" role="tablist">
-        <TabButton active={tab === "live"}     onClick={() => setTab("live")}     testid="inplay-tab-live">
-          <Radio className={`w-3.5 h-3.5 ${tab === "live" ? "text-red-400 animate-pulse" : ""}`} />
-          Live <span className="opacity-60">({live.length})</span>
-        </TabButton>
-        <TabButton active={tab === "upcoming"} onClick={() => setTab("upcoming")} testid="inplay-tab-upcoming">
-          <Calendar className="w-3.5 h-3.5" />
-          Upcoming <span className="opacity-60">({upcoming.length})</span>
-        </TabButton>
-      </div>
-
-      {/* Content */}
-      {loading ? (
-        <div className="card-surface p-10 text-center text-slate-400 inline-flex items-center gap-2 w-full justify-center">
-          <Loader2 className="w-4 h-4 animate-spin" /> Fetching cricket data…
-        </div>
-      ) : err ? (
-        <div className="card-surface p-6 text-center text-red-300 border border-red-500/30">{err}</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4" data-testid="inplay-grid">
-          <AnimatePresence mode="popLayout">
-            {rows.map((m) => <MatchCard key={m.id} match={m} onOpen={() => setOpenMatch(m)} />)}
-          </AnimatePresence>
-          {rows.length === 0 && (
-            <div className="col-span-full card-surface p-8 text-center text-slate-400">
-              No {tab} matches right now — check back soon.
-            </div>
-          )}
-        </div>
-      )}
-
-      <ScorecardModal match={openMatch} onClose={() => setOpenMatch(null)} />
-
-      <div className="text-[11px] text-slate-500 pt-2 flex items-center gap-1">
-        <Coins className="w-3 h-3" /> View-only for now — match betting arrives soon.
-      </div>
-    </div>
-  );
-}
-
-function TabButton({ active, onClick, children, testid }) {
-  return (
-    <button
-      onClick={onClick}
-      data-testid={testid}
-      className={`px-4 py-2 rounded-full text-xs font-semibold inline-flex items-center gap-2 transition
-        ${active ? "bg-cyan-500/15 border border-cyan-400/50 text-cyan-200" : "border border-white/10 text-slate-300 hover:border-white/20"}`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function MatchCard({ match, onOpen }) {
-  const isLive = match.status === "live";
-  const [t1, t2] = match.teams;
-
-  return (
-    <motion.button
-      layout
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      whileHover={{ y: -2 }}
-      onClick={onOpen}
-      data-testid={`match-card-${match.id}`}
-      className="card-surface p-4 text-left relative overflow-hidden group"
-    >
-      {/* accent glow */}
-      <div className={`absolute -top-8 -right-8 w-32 h-32 rounded-full blur-2xl opacity-30 pointer-events-none ${isLive ? "bg-red-500" : "bg-cyan-500"}`} />
-
-      <div className="flex items-center justify-between relative">
-        <div className="text-[10px] uppercase tracking-widest text-slate-400 flex items-center gap-2">
-          <span className="px-1.5 py-0.5 rounded border border-white/10">{match.format}</span>
-          <span className="truncate max-w-[180px]">{match.series}</span>
-        </div>
-        {isLive ? (
-          <span className="chip !bg-red-500/15 !border-red-400/50 !text-red-300 text-[10px] uppercase">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" /> Live
-          </span>
-        ) : (
-          <span className="chip !bg-cyan-500/10 !border-cyan-400/40 !text-cyan-300 text-[10px] uppercase">
-            <Clock className="w-3 h-3" /> Upcoming
-          </span>
-        )}
-      </div>
-
-      <div className="mt-4 space-y-2.5 relative">
-        <TeamRow team={t1} isLive={isLive} batting={isLive && match.currentBatting?.startsWith(t1.short)} />
-        <div className="text-center text-[10px] uppercase tracking-widest text-slate-500">vs</div>
-        <TeamRow team={t2} isLive={isLive} batting={isLive && match.currentBatting?.startsWith(t2.short)} />
-      </div>
-
-      <div className="mt-4 pt-3 border-t border-white/5 text-[11px] text-slate-400 flex items-center gap-3 flex-wrap">
-        <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" /> {match.venue.split(",")[0]}</span>
-        <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {match.startTime}</span>
-      </div>
-
-      {match.matchNotes && (
-        <div className={`mt-2 text-[11px] font-mono ${isLive ? "text-yellow-300" : "text-slate-400"}`}>
-          {match.matchNotes}
-        </div>
-      )}
-    </motion.button>
-  );
-}
-
-function TeamRow({ team, isLive, batting }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 grid place-items-center text-lg leading-none">
-        {team.flag}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="font-heading font-bold text-sm truncate flex items-center gap-1.5">
-          {team.name}
-          {batting && <span className="text-[9px] px-1 py-0.5 rounded bg-yellow-500/15 border border-yellow-400/40 text-yellow-300 uppercase tracking-widest">Batting</span>}
-        </div>
-        <div className="text-[10px] text-slate-500 uppercase tracking-widest">{team.short}</div>
-      </div>
-      {isLive ? (
-        <div className="text-right font-mono">
-          <div className="text-lg font-bold text-slate-100 leading-none">
-            {team.score ?? "—"}<span className="text-slate-500 text-xs">/{team.wickets ?? 0}</span>
-          </div>
-          <div className="text-[10px] text-slate-400">{team.overs ?? 0} ov</div>
-        </div>
-      ) : (
-        <div className="text-[10px] text-slate-500">—</div>
-      )}
-    </div>
-  );
-}
-
-function ScorecardModal({ match, onClose }) {
-  if (!match) return null;
-  const isLive = match.status === "live";
-  const [t1, t2] = match.teams;
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur flex items-center justify-center p-4"
-      onClick={onClose}
-      data-testid="scorecard-modal"
-    >
-      <motion.div
-        initial={{ scale: 0.95, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        className="card-surface w-full max-w-lg p-6 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onClose}
-          data-testid="scorecard-close-btn"
-          className="absolute top-3 right-3 w-8 h-8 rounded-lg border border-white/10 hover:border-white/20 grid place-items-center"
-        >
-          <X className="w-4 h-4" />
-        </button>
-
-        <div className="text-[10px] uppercase tracking-widest text-slate-400 flex items-center gap-2">
-          <span className="px-1.5 py-0.5 rounded border border-white/10">{match.format}</span>
-          <span>{match.series}</span>
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          {isLive ? (
-            <span className="chip !bg-red-500/15 !border-red-400/50 !text-red-300 text-[10px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" /> Live
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            {match.tournament && <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500">{match.tournament}</span>}
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live
             </span>
-          ) : (
-            <span className="chip !bg-cyan-500/10 !border-cyan-400/40 !text-cyan-300 text-[10px]">
-              <Clock className="w-3 h-3" /> Upcoming
-            </span>
-          )}
-          <span className="text-xs text-slate-400">{match.startTime}</span>
-        </div>
-
-        <div className="mt-5 space-y-3">
-          <TeamRow team={t1} isLive={isLive} batting={isLive && match.currentBatting?.startsWith(t1.short)} />
-          <TeamRow team={t2} isLive={isLive} batting={isLive && match.currentBatting?.startsWith(t2.short)} />
-        </div>
-
-        <div className="mt-5 grid grid-cols-2 gap-3 text-xs">
-          <InfoRow icon={MapPin}  label="Venue" value={match.venue} />
-          <InfoRow icon={Clock}   label="Time"  value={match.startTime} />
-          {match.toss    && <InfoRow icon={Trophy} label="Toss"    value={match.toss} />}
-          {match.weather && <InfoRow icon={Zap}    label="Weather" value={match.weather} />}
-        </div>
-
-        {match.matchNotes && (
-          <div className={`mt-5 rounded-lg border p-3 text-sm ${isLive ? "border-yellow-500/30 bg-yellow-500/5 text-yellow-200" : "border-white/10 bg-white/5 text-slate-300"}`}>
-            {match.matchNotes}
           </div>
-        )}
-
-        <div className="mt-5 text-[11px] text-slate-500 inline-flex items-center gap-1">
-          <Users className="w-3 h-3" /> Match betting coming soon
+          <div className="font-heading font-black text-lg text-slate-900 truncate">
+            {match.team1_name} <span className="text-slate-400 font-normal">vs</span> {match.team2_name}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+            <Clock className="w-3 h-3" /> {timeStr}
+          </div>
         </div>
-      </motion.div>
-    </motion.div>
+        <div className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
+          MO · BM · F
+        </div>
+      </div>
+
+      {/* Team 1 odds row */}
+      <OddsRow label={match.team1_name} back={odds.t1_back} lay={odds.t1_lay} />
+      {/* Team 2 odds row */}
+      <OddsRow label={match.team2_name} back={odds.t2_back} lay={odds.t2_lay} />
+      {/* Draw / Fancy — if provided */}
+      {match.odds_draw != null && (
+        <OddsRow label="The Draw" back={odds.draw} single />
+      )}
+
+      {/* Players preview */}
+      {(match.team1_players?.length > 0 || match.team2_players?.length > 0) && (
+        <details className="pt-2 border-t border-slate-100" data-testid="players-details">
+          <summary className="cursor-pointer text-xs font-semibold text-slate-600 hover:text-slate-900">
+            Show playing squads
+          </summary>
+          <div className="grid sm:grid-cols-2 gap-3 mt-3">
+            {[[match.team1_name, match.team1_players], [match.team2_name, match.team2_players]].map(([tn, plrs]) => (
+              <div key={tn} className="rounded-lg bg-slate-50 p-3">
+                <div className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-1.5">{tn}</div>
+                <div className="text-xs text-slate-700 space-y-0.5">
+                  {(plrs || []).map((p, i) => <div key={i}>· {p}</div>)}
+                  {(!plrs || plrs.length === 0) && <div className="text-slate-400">Squad not published yet</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
   );
 }
 
-function InfoRow({ icon: Icon, label, value }) {
+function OddsRow({ label, back, lay, single }) {
   return (
-    <div className="rounded-lg border border-white/5 bg-white/5 p-2.5">
-      <div className="text-[10px] uppercase tracking-widest text-slate-500 inline-flex items-center gap-1">
-        <Icon className="w-3 h-3" /> {label}
+    <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+      <div className="min-w-0 text-sm font-semibold text-slate-800 truncate">{label}</div>
+      <div className="flex items-center gap-1.5">
+        {back != null ? <OddsCell value={back} tone="blue" /> : <OddsPlaceholder />}
+        {!single && (lay != null ? <OddsCell value={lay} tone="pink" /> : <OddsPlaceholder />)}
       </div>
-      <div className="text-xs text-slate-200 mt-1">{value}</div>
     </div>
   );
+}
+
+/** Jittering odds cell with up/down arrow that flashes on change. */
+function OddsCell({ value, tone }) {
+  const [prev, setPrev] = useState(value);
+  const [flash, setFlash] = useState(null);   // "up" | "down" | null
+
+  useEffect(() => {
+    if (prev == null || value == null) { setPrev(value); return; }
+    if (value !== prev) {
+      setFlash(value > prev ? "up" : "down");
+      const t = setTimeout(() => setFlash(null), 1200);
+      setPrev(value);
+      return () => clearTimeout(t);
+    }
+  }, [value, prev]);
+
+  const base = tone === "blue" ? "bg-blue-500" : "bg-pink-500";
+  const flashCls = flash === "up"   ? "ring-2 ring-emerald-400"
+                 : flash === "down" ? "ring-2 ring-red-400"
+                 : "";
+  return (
+    <div className={`relative w-14 h-10 rounded ${base} text-white grid place-items-center text-[12px] font-bold transition-shadow ${flashCls}`}
+         data-testid={`odds-${tone}`}>
+      <span>{value != null ? value.toFixed(2) : "-"}</span>
+      {flash && (
+        <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full grid place-items-center text-[9px] shadow-sm ${flash === "up" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"}`}>
+          {flash === "up" ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function OddsPlaceholder() {
+  return <div className="w-14 h-10 rounded bg-slate-100 grid place-items-center text-slate-400 text-xs">-</div>;
 }

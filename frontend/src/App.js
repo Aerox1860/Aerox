@@ -10,6 +10,7 @@ import Game from "@/pages/Game";
 import Aviator from "@/pages/Aviator";
 import Football from "@/pages/Football";
 import HorseRacing from "@/pages/HorseRacing";
+import Limits from "@/pages/Limits";
 import Wallet from "@/pages/Wallet";
 import Deposit from "@/pages/Deposit";
 import Withdraw from "@/pages/Withdraw";
@@ -126,6 +127,7 @@ function AppRoutes() {
           <Route path="aviator" element={<Aviator />} />
           <Route path="football" element={<Football />} />
           <Route path="horse-racing" element={<HorseRacing />} />
+          <Route path="limits" element={<Limits />} />
           <Route path="wallet" element={<Wallet />} />
           <Route path="deposit" element={<Deposit />} />
           <Route path="withdraw" element={<Withdraw />} />
@@ -158,6 +160,7 @@ function AppRoutes() {
         <Route path="aviator" element={<Aviator />} />
         <Route path="football" element={<Football />} />
         <Route path="horse-racing" element={<HorseRacing />} />
+        <Route path="limits" element={<Limits />} />
         <Route path="wallet" element={<Wallet />} />
         <Route path="deposit" element={<Deposit />} />
         <Route path="withdraw" element={<Withdraw />} />

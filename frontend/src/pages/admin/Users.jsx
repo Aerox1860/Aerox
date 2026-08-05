@@ -38,6 +38,15 @@ export default function AdminUsers() {
     catch (e) { toast.error(formatApiError(e)); }
   };
 
+  const resetLimit = async (u) => {
+    if (!window.confirm(`Reset ${u.name || u.email}'s deposit limit? They'll be able to set a new one.`)) return;
+    try {
+      await api.post(`/admin/limits/${u.id}/reset`);
+      toast.success("Limit reset");
+      load();
+    } catch (e) { toast.error(formatApiError(e)); }
+  };
+
   const adjust = async () => {
     if (!adjustFor || !delta) return;
     try {
@@ -107,6 +116,16 @@ export default function AdminUsers() {
                 {u.role !== "admin" && (
                   <button onClick={() => setPwFor(u)} className="btn-ghost px-2 py-1 rounded text-xs flex items-center gap-1" data-testid={`temp-pw-btn-${u.id}`}>
                     <KeyRound className="w-3 h-3" /> {u.has_temp_password || u.must_change_password ? "New temp" : "Reset pw"}
+                  </button>
+                )}
+                {u.deposit_limit?.amount != null && (
+                  <button
+                    onClick={() => resetLimit(u)}
+                    className="btn-ghost px-2 py-1 rounded text-xs flex items-center gap-1 !text-amber-300 !border-amber-500/30"
+                    data-testid={`reset-limit-btn-${u.id}`}
+                    title={`Limit ₹${u.deposit_limit.amount} / used ₹${Number(u.deposit_limit.used || 0)}`}
+                  >
+                    <KeyRound className="w-3 h-3" /> Reset limit
                   </button>
                 )}
                 {u.role !== "admin" && (

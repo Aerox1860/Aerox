@@ -159,6 +159,7 @@ def public_user(u: dict) -> dict:
         "is_blocked": u.get("is_blocked", False),
         "last_daily_bonus": u.get("last_daily_bonus"),
         "must_change_password": bool(u.get("must_change_password", False)),
+        "deposit_limit": u.get("deposit_limit") or None,
     }
 
 
@@ -518,6 +519,60 @@ async def claim_daily_bonus(user: dict = Depends(current_user)):
     return {"ok": True, "user": public_user(updated)}
 
 
+# ── Self-imposed deposit limits (responsible gambling) ───────────────
+class LimitIn(BaseModel):
+    amount: float = Field(gt=0, le=10_000_000)   # ₹1 – ₹1 crore
+
+@api.get("/limits/me")
+async def get_my_limit(user: dict = Depends(current_user)):
+    lim = user.get("deposit_limit") or {}
+    return {
+        "amount": lim.get("amount"),
+        "used":   float(lim.get("used", 0) or 0),
+        "set_at": lim.get("set_at"),
+        "locked": lim.get("amount") is not None and float(lim.get("used", 0) or 0) >= float(lim.get("amount") or 0),
+    }
+
+@api.post("/limits/set")
+async def set_my_limit(body: LimitIn, user: dict = Depends(current_user)):
+    """Users set (or modify) their own deposit ceiling.
+
+    Once used ≥ amount, the limit is LOCKED — user must contact support
+    and admin resets before they can set a new one.
+    """
+    existing = user.get("deposit_limit") or {}
+    used = float(existing.get("used", 0) or 0)
+    cap  = float(existing.get("amount") or 0)
+    if existing.get("amount") is not None and used >= cap:
+        raise HTTPException(status_code=403, detail="Limit reached and locked. Contact support to reset.")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"deposit_limit": {
+        "amount": round(float(body.amount), 2),
+        "used":   used,     # preserve existing usage
+        "set_at": iso(now_utc()),
+    }}})
+    updated = await db.users.find_one({"id": user["id"]})
+    return {"ok": True, "user": public_user(updated)}
+
+@api.delete("/limits/me")
+async def remove_my_limit(user: dict = Depends(current_user)):
+    """User can REMOVE their limit only if it hasn't been reached yet."""
+    existing = user.get("deposit_limit") or {}
+    used = float(existing.get("used", 0) or 0)
+    cap  = float(existing.get("amount") or 0)
+    if existing.get("amount") is not None and used >= cap:
+        raise HTTPException(status_code=403, detail="Limit locked. Contact support to reset.")
+    await db.users.update_one({"id": user["id"]}, {"$unset": {"deposit_limit": ""}})
+    return {"ok": True}
+
+@api.post("/admin/limits/{user_id}/reset")
+async def admin_reset_limit(user_id: str, _: dict = Depends(admin_only)):
+    """Admin resets a locked limit so the user can set a fresh one."""
+    res = await db.users.update_one({"id": user_id}, {"$unset": {"deposit_limit": ""}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"ok": True}
+
+
 # --------------------- WALLET ---------------------
 @api.get("/wallet/balance")
 async def get_balance(user: dict = Depends(current_user)):
@@ -580,6 +635,21 @@ async def admin_delete_upi(upi_id: str, _: dict = Depends(admin_only)):
 # --------------------- DEPOSITS ---------------------
 @api.post("/deposits")
 async def create_deposit(body: DepositIn, user: dict = Depends(current_user)):
+    # ── Deposit-limit gate ────────────────────────────────────────────
+    # If the user has set a self-imposed deposit limit, block any new
+    # deposit that would push their cumulative deposits (from the moment
+    # they set the limit) past that ceiling. Admin can reset the limit
+    # so the user can continue depositing.
+    ulim = user.get("deposit_limit") or {}
+    if ulim.get("amount") is not None:
+        used = float(ulim.get("used", 0) or 0)
+        cap  = float(ulim.get("amount") or 0)
+        if used + float(body.amount) > cap:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Deposit limit reached (₹{used:.0f}/₹{cap:.0f}). Contact support to reset the limit.",
+            )
+
     # Check UTR unique
     utr = body.utr.strip().upper()
     exists = await db.deposits.find_one({"utr": utr})
@@ -685,6 +755,11 @@ async def admin_approve_deposit(dep_id: str, admin: dict = Depends(admin_only)):
     await credit(dep["user_id"], amount, "deposit", f"Deposit approved (UTR {dep['utr']})", dep_id)
     if bonus > 0:
         await credit(dep["user_id"], bonus, "bonus", f"{DEPOSIT_BONUS_PCT}% deposit bonus", dep_id)
+    # Roll deposit into the user's self-imposed limit "used" counter.
+    await db.users.update_one(
+        {"id": dep["user_id"], "deposit_limit.amount": {"$ne": None}},
+        {"$inc": {"deposit_limit.used": amount}},
+    )
     return {"ok": True}
 
 

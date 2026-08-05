@@ -5,24 +5,21 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html, body, #root {
   height: 100%;
-  background: #06090F;
+  background: #ffffff;
 }
 
 body {
   margin: 0;
   font-family: 'Outfit', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  color: #F8FAFC;
+  color: #0f172a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background:
-    radial-gradient(1200px 600px at 90% -10%, rgba(6,182,212,0.08), transparent 60%),
-    radial-gradient(1000px 500px at -10% 110%, rgba(34,197,94,0.06), transparent 60%),
-    #06090F;
+  background: #ffffff;
 }
 
 .font-heading { font-family: 'Unbounded', ui-sans-serif, system-ui, sans-serif; }
